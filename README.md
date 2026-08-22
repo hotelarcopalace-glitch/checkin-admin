@@ -104,7 +104,53 @@ node -e 'console.log("cks_" + require("crypto").randomBytes(24).toString("base64
 
 Then update `SMS_API_KEY` locally and in Vercel, and redeploy.
 
-## 5. Deploy to Vercel
+## 5. Open SMS insert endpoint (vendor-facing)
+
+For gateways that cannot send an API key, `SMSInsert` accepts two fields and no
+authentication. Same handler is served from three paths:
+
+```
+https://checkin.co.in/api/sms/SMSInsert
+https://checkin.co.in/api/sms/insert
+https://checkin.co.in/newadmin/api/sms/SMSInsert
+```
+
+**Method:** GET or POST · **Auth:** none · **Fields:** `mobileNo`, `smsText`
+
+```bash
+# GET
+curl "https://checkin.co.in/api/sms/SMSInsert?mobileNo=919876543210&smsText=Dear%20Guest%2C%20your%20room%20is%20ready."
+
+# POST form
+curl -X POST "https://checkin.co.in/api/sms/SMSInsert" \
+  -d "mobileNo=919876543210" -d "smsText=Dear Guest, your room is ready."
+
+# POST JSON
+curl -X POST "https://checkin.co.in/api/sms/SMSInsert" \
+  -H "Content-Type: application/json" \
+  -d '{"mobileNo":"919876543210","smsText":"Dear Guest, your room is ready."}'
+```
+
+Success → `{"code":0,"error":false,"message":"SMS inserted successfully","id":"42","mobileNo":"+919876543210","status":"sent"}`
+Failure → `{"code":1,"error":true,"message":"mobileNo is required"}`
+
+Accepted field aliases:
+
+| Meaning | Accepted names |
+| --- | --- |
+| mobile number | `mobileNo`, `mobile_no`, `mobile`, `phone_number` |
+| message text | `smsText`, `sms_text`, `message`, `text` |
+| optional | `status`, `guest_name`, `provider`, `template` |
+
+Numbers are normalised to `+91XXXXXXXXXX` — 10-digit, `0`-prefixed, `91`-prefixed and
+`+91`-prefixed all work, as do other international numbers of 8–15 digits.
+
+> **This endpoint is deliberately unauthenticated**, so anyone who knows the URL can insert
+> rows. A rate limit of 60 requests per minute per IP is the only guard (`lib/sms-insert.ts`).
+> Prefer [`POST /api/sms/log`](#4-logging-sms-from-your-check-in-software) with an API key
+> wherever the caller can set headers.
+
+## 6. Deploy to Vercel
 
 1. Push this repo to GitHub.
 2. [vercel.com/new](https://vercel.com/new) → Import the repo → framework auto-detects Next.js.
@@ -112,7 +158,7 @@ Then update `SMS_API_KEY` locally and in Vercel, and redeploy.
    **Settings → Environment Variables** (Production + Preview).
 4. Deploy.
 
-## 6. Point checkin.co.in at Vercel (GoDaddy)
+## 7. Point checkin.co.in at Vercel (GoDaddy)
 
 In Vercel: **Project → Settings → Domains → Add** `checkin.co.in` and `www.checkin.co.in`.
 Vercel then shows the exact DNS records. In GoDaddy (**My Products → Domain → DNS →
@@ -130,7 +176,7 @@ DNS usually propagates in 10–60 minutes; Vercel issues the SSL certificate aut
 
 > Always use the values Vercel shows in its Domains tab — they occasionally change.
 
-## 7. Security notes
+## 8. Security notes
 
 - The password is stored only as a scrypt hash; the session is a signed JWT in an
   httpOnly cookie that expires after 12 hours.
@@ -149,6 +195,8 @@ app/
   api/auth/logout         clears the session
   api/sms/export          CSV download of the current filter
   api/sms/log             API-key protected insert endpoint
+  api/sms/SMSInsert       open vendor endpoint (also /api/sms/insert,
+                          /newadmin/api/sms/SMSInsert)
   api/admin/db-setup      admin-only schema setup
 lib/
   auth.ts                 JWT session sign/verify
