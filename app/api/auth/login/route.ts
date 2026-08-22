@@ -41,9 +41,13 @@ export async function POST(req: Request) {
 
   const expectedUser = process.env.ADMIN_USERNAME;
   const expectedHash = process.env.ADMIN_PASSWORD_HASH;
-  if (!expectedUser || !expectedHash || !process.env.SESSION_SECRET) {
+  const missing = (["ADMIN_USERNAME", "ADMIN_PASSWORD_HASH", "SESSION_SECRET"] as const).filter(
+    (name) => !process.env[name]
+  );
+  if (missing.length || !expectedUser || !expectedHash) {
+    // Names only — never the values.
     return NextResponse.json(
-      { error: "Admin login is not configured on the server." },
+      { error: `Admin login is not configured. Missing env vars: ${missing.join(", ")}` },
       { status: 500 }
     );
   }
