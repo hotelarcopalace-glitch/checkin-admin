@@ -1,0 +1,62 @@
+body{background:url(../images/fadestrip2.png) repeat-x;}
+#wrapper{width:980px; margin:0 auto; padding:0px; float:none; margin-top:0px; background-color:#FFFFFF;}
+#wrapper_foot{width:980px; margin:0 auto; padding:0px; float:none;}
+#header{width:952px; height:55px; margin:0 auto; padding:0px; float:none;}
+#head_corner{width:8px; height:55px; float:left; margin:0 auto; padding:0px;}
+#head_in{width:936px; height:55px; float:left; margin:0 auto; padding:0px; background-color:#30151c;}
+#logo{width:107px; height:55px; z-index:1; position:absolute; background:url(../images/logo2.jpg) no-repeat top left;}
+#header_cap{width:500px; height:20px; z-index:1; position:absolute; margin-top:20px; margin-left:100px; font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#FFFFFF; vertical-align:middle;}
+#menu{width:952px; height:47px; background:url(../images/menu_bg.jpg) repeat-x top left; float:none; margin:0 auto; padding:0px;}
+#block{width:156px; line-height:47px; height:47px; float:left; background:url(../images/menu_bg.jpg) repeat-x top left; margin:0 auto; text-align:center;}
+a.block{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; color:#888787; display:block; background:url(../images/menu_bg.jpg) repeat-x top left; font-size:12px; line-height:47px; text-decoration:none;}
+a.block:hover{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; color:#888787; display:block; background:url(../images/menu_bghover.jpg) repeat-x top left; font-size:12px; line-height:47px; text-decoration:none;}
+#divi{width:3px; height:45px; background-image:url(../images/divi.jpg); background-repeat: no-repeat; float:left;}
+#banner{width:952px; height:343px; float:none; margin:0 auto; padding:0px;}
+#middle{width:952px; height:auto; margin:0 auto; padding:0px; float:none; clear:both; background-color:#f6f6f6;}
+#left_area{width:245px; height:auto; background-color:#f6f6f6; float:left; margin:0 auto; margin-top:10px;}
+#left_area_inn{width:207px; height:auto; background-color:#f6f6f6; float:none; margin:0 auto;}
+#top_botom{width:207px; height:9px; float:left;}
+#left_category{width:207px; height:530px; background:url(../images/left_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#left_category2{width:207px; height:200px; background:url(../images/left_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_area{width:705px; background-color:#f6f6f6; float:left; margin:0 auto; height:auto; margin-top:10px;}
+#right_area_inn{width:660px; background-color:#f6f6f6; float:none; margin:0 auto; height:auto;}
+#top_botom_rt{width:660px; height:9px; float:left;}
+#right_category{width:660px; height:530px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_category_fom{width:660px; height:1050px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_category_service{width:660px; height:700px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_category_pom{width:660px; height:600px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_category_price{width:660px; height:830px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_category_report{width:660px; height:1050px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_category_dwn{width:660px; height:500px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#right_category_auto{width:660px; height:auto; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#welcome_index{width:600px; height:auto; margin:0 auto; float:left; font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#000; margin-left:10px;}
+#welcome_client{width:630px; height:530px; margin:0 auto; float:left; font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#000; margin-left:10px; overflow:scroll;}
+#welcome{width:600px; height:530px; margin:0 auto; float:left; font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#000; margin-left:10px;}
+#welcome2{width:600px; height:auto; margin:0 auto; float:left; font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#000; margin-left:10px;}
+
+#right_category2{width:660px; height:200px; background:url(../images/right_bg_rep.jpg) repeat-y top left; margin:0 auto; float:left;}
+#list_container{width:180px; height:auto; float:left; margin:0 auto;}
+.list_style ul li{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#000000; list-style:none; line-height:23px; list-style-position:inherit; text-align:left; padding:0px; margin:0 auto; display:block; border-bottom:#ebe9e9 solid 1px;}
+ul{text-align:left;}
+h1{font-size:16px; color:#cd161e;}
+#slab{width:650px; float:none; margin:0 auto; padding:0px;}
+#slab_block{width:155px; height:auto; float:left; margin:0 auto; padding:0px;}
+#slab_block1{width:150px; height:30px; float:left; margin:0 auto; padding:0px; text-align:center;}
+#slab_block2{width:150px; height:98px; float:left; margin:0 auto; padding:0px; text-align:center;}
+#slab_block3{width:150px; height:65px; float:left; margin:0 auto; padding:0px; text-align:center;}
+.bl3{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:11px; color:#000000;}
+.bl1{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#cd161e; font-weight:bold;}
+
+#log{width:200px; float:none; margin:0 auto; padding:0px;}
+#log_cap{width:195px; float:none; margin:0 auto; padding:0px; float:left; height:30px;}
+#log_cap1{width:195px; float:none; margin:0 auto; padding:0px; float:left; height:40px; text-align:center;}
+#log_texttype{width:195px; float:none; margin:0 auto; padding:0px; float:left; height:30px;}
+#log_texttype_cap{width:85px; float:none; margin:0 auto; padding:0px; float:left; height:30px; text-align:center;}
+#log_texttype_area{width:100px; float:none; margin:0 auto; padding:0px; float:left; height:30px;}
+
+.log_cap1{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; color:#000000; font-size:11px;}
+.log_user{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; color:#000000; font-size:12px; font-weight:bold;}
+
+
+.foot{font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:10px; color:#FFFFFF;}
+#fl{float:none; background-color:#f6f6f6; width:952px; margin:0 auto; height:1700px;}

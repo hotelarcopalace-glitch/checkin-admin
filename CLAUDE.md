@@ -9,6 +9,16 @@ Next.js 15 (App Router) + TypeScript + Tailwind v4 + Postgres. A password-protec
 admin area with a dashboard and an SMS list, plus two APIs that let the hotel's
 check-in software and its SMS gateway push messages in.
 
+The **public site at `/`** is the owner's original checkin.co.in marketing site, restored
+from the Wayback Machine snapshot of 2 Apr 2023 (`20230402024347`). It is plain static
+HTML in `public/` — `index.html` (also `index-2.html`), `aboutus.html`, `service.html`,
+`contact_us.html`, `client.html`, plus `css/`, `js/`, `images/`. A rewrite in
+`next.config.ts` maps `/` to `/index.html`; there is no `app/page.tsx`. Do not "modernise"
+these files unasked — they are a faithful restore. Known gaps: the homepage Flash banner
+(`flash/checkin banner.swf`) cannot play in any current browser, the `Check-In.msi` and
+`SMSExcel2007AddInSetup.msi` download links were not restored, and `client.html` was
+already a MySQL error page when the snapshot was taken.
+
 ## Live URLs
 
 | What | Where |

@@ -1,0 +1,60 @@
+.selectedanchor{ /*CSS class that gets added to the currently selected anchor link (assuming it's a text link)*/
+background: yellow;
+}
+
+/* ######### Default class for drop down menus ######### */
+
+.anylinkmenu{
+position: absolute;
+left: 0;
+top: 0;
+visibility: hidden;
+border: 1px solid #cccccc;
+border-bottom-width: 0;
+font: normal 12px Verdana;
+line-height: 30px;
+z-index: 100; /* zIndex should be greater than that of shadow's below */
+background:url(../images/menu_bg.jpg) repeat-x left top;
+width: 200px; /* default width for menu */
+}
+
+.anylinkmenu ul{
+margin: 0;
+padding: 0;
+list-style-type: none;
+}
+
+.anylinkmenu ul li a{
+background:url(../images/menu_bg.jpg) repeat-x left top;
+width: 100%;
+display: block;
+text-indent: 3px;
+color:#000;
+border-bottom: 1px solid #cccccc;
+font:Arial, Helvetica, sans-serif; font-family:Arial, Helvetica, sans-serif; font-size:12px;
+padding: 2px 0;
+text-decoration: none;
+font-weight: 200;
+text-indent: 5px;
+}
+
+.anylinkmenu a:hover{ /*hover background color*/
+background:url(../images/menu_bghover.jpg) repeat-x top left;
+color:#666666;
+}
+
+
+
+
+
+/* ######### class for shadow DIV ######### */
+
+
+.anylinkshadow{ /*CSS for shadow. Keep this as is */
+position: absolute;
+left: 0;
+top: 0;
+z-index: 99; /*zIndex for shadow*/
+background: #e5e5e5;
+visibility: hidden;
+}
