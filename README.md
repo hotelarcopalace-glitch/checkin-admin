@@ -70,8 +70,10 @@ Manage Zones**) set:
 
 | Type | Name | Value | TTL |
 | --- | --- | --- | --- |
-| A | `@` | `76.76.21.21` | 600 |
-| CNAME | `www` | `cname.vercel-dns.com` | 600 |
+| A | `@` | `64.29.17.1` | 600 |
+| CNAME | `www` | `8e06b7d491dac3d9.vercel-dns-017.com` | 600 |
+
+(Values confirmed with `vercel domains verify checkin.co.in` on 22 Aug 2026.)
 
 Delete any existing A/CNAME record on `@` or `www` first (GoDaddy parking records).
 DNS usually propagates in 10–60 minutes; Vercel issues the SSL certificate automatically.
