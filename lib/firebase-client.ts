@@ -31,8 +31,21 @@ export async function requestPushToken(): Promise<string> {
   if (!firebaseReady()) throw new Error("Firebase is not configured on this site yet.");
   if (!(await isSupported())) throw new Error("This browser does not support push notifications.");
 
+  // Chrome keeps a "denied" decision and never prompts again, so say so plainly
+  // instead of showing a generic failure.
+  if (Notification.permission === "denied") {
+    throw new Error(
+      "Notifications are blocked for this site. Tap the lock icon next to the address bar → Permissions → Notifications → Allow, then reload and try again."
+    );
+  }
+
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") throw new Error("Notification permission was not given.");
+  if (permission === "denied") {
+    throw new Error("You chose Block. Allow notifications from the lock icon next to the address bar, then try again.");
+  }
+  if (permission !== "granted") {
+    throw new Error("The permission prompt was dismissed. Tap the button again and choose Allow.");
+  }
 
   // The worker cannot read env vars, so the config rides along in the query string.
   const params = new URLSearchParams(firebaseConfig as unknown as Record<string, string>);

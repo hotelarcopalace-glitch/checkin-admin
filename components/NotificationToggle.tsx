@@ -9,10 +9,21 @@ export default function NotificationToggle() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ title: string; body: string } | null>(null);
 
+  const [diagnostics, setDiagnostics] = useState<string>("");
+
   useEffect(() => {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
       setState("on");
     }
+    // Shown under the button so a blocked browser can be diagnosed at a glance.
+    setDiagnostics(
+      [
+        `permission: ${typeof Notification === "undefined" ? "unsupported" : Notification.permission}`,
+        `serviceWorker: ${"serviceWorker" in navigator}`,
+        `push: ${"PushManager" in window}`,
+        `secure: ${window.isSecureContext}`,
+      ].join(" · ")
+    );
     onForegroundMessage((title, body) => setToast({ title, body }));
   }, []);
 
@@ -70,6 +81,7 @@ export default function NotificationToggle() {
 
       {message && <p className="mt-2 text-sm text-emerald-700">{message}</p>}
       {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+      {diagnostics && <p className="mt-2 font-mono text-[11px] text-slate-400">{diagnostics}</p>}
 
       {toast && (
         <div className="mt-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3">
