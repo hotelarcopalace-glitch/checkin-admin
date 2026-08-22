@@ -31,6 +31,7 @@ export async function GET(req: Request) {
       "segments",
       "cost",
       "error",
+      "source_ip",
       "created_at",
       "sent_at",
     ];

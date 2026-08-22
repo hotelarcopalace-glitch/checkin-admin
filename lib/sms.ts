@@ -15,6 +15,7 @@ export type SmsRow = {
   segments: number;
   cost: string;
   error: string | null;
+  source_ip: string | null;
   created_at: Date;
   sent_at: Date | null;
 };
@@ -98,7 +99,7 @@ export async function listSms(f: SmsFilters): Promise<SmsListResult> {
     const [rows, agg] = await Promise.all([
       query<SmsRow>(
         `SELECT id::text, recipient, guest_name, message, status, provider, template,
-                segments, cost::text, error, created_at, sent_at
+                segments, cost::text, error, source_ip, created_at, sent_at
          FROM sms_messages ${where}
          ORDER BY created_at DESC, id DESC
          LIMIT ${f.pageSize} OFFSET ${offset}`,
@@ -133,7 +134,7 @@ export async function allSmsForExport(f: SmsFilters): Promise<SmsRow[]> {
   try {
     return await query<SmsRow>(
       `SELECT id::text, recipient, guest_name, message, status, provider, template,
-              segments, cost::text, error, created_at, sent_at
+              segments, cost::text, error, source_ip, created_at, sent_at
        FROM sms_messages ${where}
        ORDER BY created_at DESC, id DESC
        LIMIT 10000`,

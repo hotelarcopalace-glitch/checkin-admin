@@ -17,6 +17,10 @@ CREATE INDEX IF NOT EXISTS sms_messages_created_at_idx ON sms_messages (created_
 CREATE INDEX IF NOT EXISTS sms_messages_status_idx     ON sms_messages (status);
 CREATE INDEX IF NOT EXISTS sms_messages_recipient_idx  ON sms_messages (recipient);
 
+-- Source IP of the gateway that called SMSInsert (added with the new list design).
+ALTER TABLE sms_messages ADD COLUMN IF NOT EXISTS source_ip TEXT;
+
+
 -- ---------------------------------------------------------------------------
 -- Guest-facing login + push notifications
 -- ---------------------------------------------------------------------------

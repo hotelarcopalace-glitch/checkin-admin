@@ -113,8 +113,8 @@ export async function handleSmsInsert(req: Request) {
   try {
     const rows = await query<{ id: string }>(
       `INSERT INTO sms_messages
-         (recipient, guest_name, message, status, provider, template, segments, cost, sent_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, NOW())
+         (recipient, guest_name, message, status, provider, template, segments, cost, source_ip, sent_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8, NOW())
        RETURNING id::text`,
       [
         mobile,
@@ -124,6 +124,7 @@ export async function handleSmsInsert(req: Request) {
         provider,
         template,
         Math.min(10, Math.ceil(text.length / 160) || 1),
+        ip === "local" ? null : ip,
       ]
     );
     // Notify every device this guest has registered. Push failures are logged

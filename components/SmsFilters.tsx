@@ -9,106 +9,55 @@ export default function SmsFilters() {
   const params = useSearchParams();
 
   const [q, setQ] = useState(params.get("q") ?? "");
-  const status = params.get("status") ?? "";
-  const from = params.get("from") ?? "";
-  const to = params.get("to") ?? "";
-  const size = params.get("size") ?? "25";
+  const [status, setStatus] = useState(params.get("status") ?? "");
+  const [from, setFrom] = useState(params.get("from") ?? "");
+  const [to, setTo] = useState(params.get("to") ?? "");
 
   useEffect(() => {
     setQ(params.get("q") ?? "");
+    setStatus(params.get("status") ?? "");
+    setFrom(params.get("from") ?? "");
+    setTo(params.get("to") ?? "");
   }, [params]);
 
-  function apply(changes: Record<string, string>) {
-    const next = new URLSearchParams(params.toString());
-    for (const [key, value] of Object.entries(changes)) {
-      if (value) next.set(key, value);
-      else next.delete(key);
-    }
-    next.delete("page");
-    router.push(`/admin/sms?${next.toString()}`);
+  function apply(e?: React.FormEvent) {
+    e?.preventDefault();
+    const next = new URLSearchParams();
+    if (q.trim()) next.set("q", q.trim());
+    if (status) next.set("status", status);
+    if (from) next.set("from", from);
+    if (to) next.set("to", to);
+    const size = params.get("size");
+    if (size) next.set("size", size);
+    router.push(`/admin/sms${next.toString() ? `?${next}` : ""}`);
   }
 
-  const field =
-    "rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100";
-  const hasFilters = Boolean(q || status || from || to);
-
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        apply({ q });
-      }}
-      className="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4"
-    >
-      <div className="min-w-52 flex-1">
-        <label className="mb-1 block text-xs font-medium text-slate-500">Search</label>
+    <form className="filter-card" onSubmit={apply}>
+      <div className="filter-row">
         <input
-          className={`${field} w-full`}
-          placeholder="Phone, guest name or message…"
+          type="text"
+          placeholder="Search SMS text / mobile…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Status</label>
-        <select className={field} value={status} onChange={(e) => apply({ status: e.target.value })}>
-          <option value="">All</option>
+        <select value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="">All statuses</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>
               {s[0].toUpperCase() + s.slice(1)}
             </option>
           ))}
         </select>
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">From</label>
-        <input
-          type="date"
-          className={field}
-          value={from}
-          onChange={(e) => apply({ from: e.target.value })}
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">To</label>
-        <input
-          type="date"
-          className={field}
-          value={to}
-          onChange={(e) => apply({ to: e.target.value })}
-        />
-      </div>
-
-      <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Per page</label>
-        <select className={field} value={size} onChange={(e) => apply({ size: e.target.value })}>
-          {["10", "25", "50", "100"].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <button
-        type="submit"
-        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-      >
-        Apply
-      </button>
-
-      {hasFilters && (
-        <button
-          type="button"
-          onClick={() => router.push("/admin/sms")}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-        >
-          Reset
+        <input type="date" title="From date" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <input type="date" title="To date" value={to} onChange={(e) => setTo(e.target.value)} />
+        <button type="submit" className="btn btn-primary">
+          Filter
         </button>
-      )}
+        <button type="button" className="btn btn-ghost" onClick={() => router.push("/admin/sms")}>
+          Clear
+        </button>
+      </div>
     </form>
   );
 }
