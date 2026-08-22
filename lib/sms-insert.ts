@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hasDatabase, query } from "./db";
+import { pushToMobile } from "./fcm";
 import { STATUSES } from "./sms-status";
 
 /** Vendor-facing response shape: code 0 = success, code 1 = failure. */
@@ -125,7 +126,17 @@ export async function handleSmsInsert(req: Request) {
         Math.min(10, Math.ceil(text.length / 160) || 1),
       ]
     );
-    return ok({ id: rows[0].id, mobileNo: mobile, status });
+    // Notify every device this guest has registered. Push failures are logged
+    // to notification_log but never fail the insert — the vendor only cares
+    // that the message was stored.
+    const push = await pushToMobile(
+      mobile,
+      "New message",
+      text.length > 120 ? `${text.slice(0, 117)}…` : text,
+      { smsId: rows[0].id, mobile }
+    );
+
+    return ok({ id: rows[0].id, mobileNo: mobile, status, push });
   } catch (err) {
     if (typeof err === "object" && err && (err as { code?: string }).code === "42P01") {
       return fail("Table sms_messages does not exist. Run the database setup first.", 503);
