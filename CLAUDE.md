@@ -49,7 +49,31 @@ in the Vercel env vars as a scrypt hash. Lost it? Run `npm run gen:admin` and up
 ## Environment variables
 
 `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`, `SESSION_SECRET`, `SMS_API_KEY`,
-`DATABASE_URL` (from Neon), optional `DB_POOL_MAX`.
+`DATABASE_URL` (from Neon), optional `DB_POOL_MAX`, `SITE_URL`, `OTP_SKIP`.
+
+Push notifications additionally need `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`,
+`FIREBASE_PRIVATE_KEY` (server) and `NEXT_PUBLIC_FIREBASE_API_KEY`,
+`NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`,
+`NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`,
+`NEXT_PUBLIC_FIREBASE_VAPID_KEY` (client). **Not set yet** — until they are, everything
+works except the actual push, which reports `skipped: "FCM not configured"`.
+
+## Guest login and push
+
+`/user/login` takes a mobile number, issues a six-digit OTP into `otp_codes`, and
+`/user` shows that number's messages plus a "turn on notifications" button. The button
+asks for browser permission, gets an FCM token and stores it in `device_tokens`.
+`lib/sms-insert.ts` then pushes to every token on that number after each insert, logging
+outcomes to `notification_log`.
+
+`OTP_SKIP` defaults to **true**: any code is accepted and the code is returned in the API
+response and shown on screen, because there is no SMS gateway yet. **Anyone can therefore
+log in as any number and read its messages** — the owner accepted this for now. Set
+`OTP_SKIP=false` the moment SMS sending works.
+
+FCM uses the HTTP v1 API with a service account; `lib/fcm.ts` mints the Google OAuth token
+itself with `jose`, so `firebase-admin` is deliberately not a dependency. Dead tokens are
+deleted when Google reports UNREGISTERED.
 
 ## Endpoints
 
@@ -101,6 +125,9 @@ filters, pagination, CSV export, both insert APIs, custom domain with SSL.
 The demo and test rows were cleared on 22 Aug 2026 — the table is empty and waiting for
 real traffic. The SMS List page carries a "Danger zone" card with a **Clear all messages**
 button (two-step confirm) for doing it again.
+
+**Pending:** the homepage still has the dead Flash banner (owner asked for a static image
+in its place — not done yet), and the Firebase keys above are not configured.
 
 Possible follow-ups they raised: pulling logs directly from the SMS provider
 (MSG91/Textlocal/Fast2SMS/Twilio — not chosen yet), serving the same API on
