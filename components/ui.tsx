@@ -1,4 +1,5 @@
 import type { SmsStatus } from "@/lib/sms-status";
+import DbSetupButton from "./DbSetupButton";
 
 export function StatCard({
   label,
@@ -63,10 +64,13 @@ export function SetupNotice({ reason }: { reason: "no-url" | "no-table" }) {
           </li>
         </ol>
       ) : (
-        <p className="mt-2">
-          Run <code>npm run db:setup -- --seed</code> locally (with <code>DATABASE_URL</code> set)
-          to create <code>sms_messages</code>.
-        </p>
+        <>
+          <p className="mt-2">
+            The <code>sms_messages</code> table has not been created yet. Run the setup below, or
+            run <code>npm run db:setup -- --seed</code> locally.
+          </p>
+          <DbSetupButton />
+        </>
       )}
     </div>
   );
