@@ -49,6 +49,7 @@ in the Vercel env vars as a scrypt hash. Lost it? Run `npm run gen:admin` and up
 | `POST /api/auth/logout` | — | clears the cookie |
 | `GET /api/sms/export` | admin session | CSV of the current filter |
 | `POST /api/admin/db-setup` | admin session | applies `db/schema.sql`, `?seed=1` adds demo rows. Idempotent. |
+| `POST /api/admin/clear-sms` | admin session | deletes every message; body must be `{"confirm":"DELETE"}` |
 | `POST /api/sms/log` | `SMS_API_KEY` | structured insert, 1–100 messages, full validation |
 | `GET\|POST /api/sms/SMSInsert` | **none — open** | vendor endpoint: `mobileNo` + `smsText`, returns `{code:0}` / `{code:1}` |
 
@@ -87,8 +88,9 @@ unauthenticated at the owner's request — only a 60/minute per-IP limit guards 
 Everything above is live and tested: login, dashboard, SMS list with search/status/date
 filters, pagination, CSV export, both insert APIs, custom domain with SSL.
 
-The database holds ~31 demo and test rows. **Clearing them is the next task** — the owner
-wants a clean table before real traffic, and asked for an admin-only "clear data" action.
+The demo and test rows were cleared on 22 Aug 2026 — the table is empty and waiting for
+real traffic. The SMS List page carries a "Danger zone" card with a **Clear all messages**
+button (two-step confirm) for doing it again.
 
 Possible follow-ups they raised: pulling logs directly from the SMS provider
 (MSG91/Textlocal/Fast2SMS/Twilio — not chosen yet), serving the same API on

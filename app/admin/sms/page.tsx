@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import ClearDataButton from "@/components/ClearDataButton";
 import SmsFilters from "@/components/SmsFilters";
 import { formatDate, SetupNotice, StatCard, StatusBadge } from "@/components/ui";
 import { DbNotReady, listSms, parseFilters } from "@/lib/sms";
@@ -139,6 +140,8 @@ export default async function SmsListPage({
           </div>
         </div>
       </div>
+
+      <ClearDataButton total={stats.total} />
     </div>
   );
 }
