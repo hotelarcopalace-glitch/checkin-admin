@@ -55,8 +55,20 @@ Push notifications additionally need `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMA
 `FIREBASE_PRIVATE_KEY` (server) and `NEXT_PUBLIC_FIREBASE_API_KEY`,
 `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`,
 `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`,
-`NEXT_PUBLIC_FIREBASE_VAPID_KEY` (client). **Not set yet** — until they are, everything
-works except the actual push, which reports `skipped: "FCM not configured"`.
+`NEXT_PUBLIC_FIREBASE_VAPID_KEY` (client). **All of these are set in Vercel** (production,
+preview and development) and push has been confirmed working on a real Android phone.
+
+Firebase project is **`checkin-3715a`**, service account
+`firebase-adminsdk-u7h1t@checkin-3715a.iam.gserviceaccount.com`. The downloaded service
+account JSON lives at `~/Downloads/checkin-3715a-firebase-adminsdk-u7h1t-b90d130418.json`
+on the owner's Mac — it is the only local copy of the private key, and it is **not** in the
+repo. Regenerate it from the Firebase console if it is ever lost.
+
+Two Vercel CLI traps when setting these: `NEXT_PUBLIC_*` variables are rejected as
+"sensitive", so they need `--no-sensitive --visibility config`; and `FIREBASE_PRIVATE_KEY`
+starts with `-----BEGIN`, which the CLI reads as a flag, so it must be piped through stdin
+rather than passed with `--value`. Always confirm with `vercel env ls` afterwards — adds
+can fail silently.
 
 ## Guest login and push
 
@@ -74,6 +86,18 @@ log in as any number and read its messages** — the owner accepted this for now
 FCM uses the HTTP v1 API with a service account; `lib/fcm.ts` mints the Google OAuth token
 itself with `jose`, so `firebase-admin` is deliberately not a dependency. Dead tokens are
 deleted when Google reports UNREGISTERED.
+
+Multi-login behaviour is tested and works: one number may register up to 20 devices and
+every one of them is pushed; different numbers can be logged in at the same time and never
+see each other's messages; and if a second number logs in on a browser that already has a
+token, the token moves to the new number (`ON CONFLICT (token) DO UPDATE`). Push failures
+never fail the insert — the vendor always gets `code: 0`.
+
+Note that `NEXT_PUBLIC_*` values are inlined at build time, so changing them needs a real
+rebuild. When push silently does nothing, check in this order: the JSON response's `push`
+field (`no devices registered` means the browser never registered), then the browser's own
+permission state — the toggle prints a diagnostics line (`permission · serviceWorker ·
+push · secure`) under the button for exactly this.
 
 ## Endpoints
 
@@ -119,16 +143,29 @@ unauthenticated at the owner's request — only a 60/minute per-IP limit guards 
 
 ## State as of 22 Aug 2026
 
-Everything above is live and tested: login, dashboard, SMS list with search/status/date
-filters, pagination, CSV export, both insert APIs, custom domain with SSL.
+Live and verified end to end:
 
-The demo and test rows were cleared on 22 Aug 2026 — the table is empty and waiting for
-real traffic. The SMS List page carries a "Danger zone" card with a **Clear all messages**
-button (two-step confirm) for doing it again.
+- Public site at `/` (restored 2023 snapshot), admin at `/admin`, guest area at `/user`.
+- Both insert APIs, CSV export, filters, clear-messages action.
+- Guest login by mobile number, device registration, and **real push delivered to an
+  Android phone** (`{"push":{"sent":1,"failed":0}}`).
 
-**Pending:** the homepage still has the dead Flash banner (owner asked for a static image
-in its place — not done yet), and the Firebase keys above are not configured.
+The database is **empty** — every demo and test row was cleared after testing.
 
-Possible follow-ups they raised: pulling logs directly from the SMS provider
-(MSG91/Textlocal/Fast2SMS/Twilio — not chosen yet), serving the same API on
-hotelarcopalace.com, and more admin pages (bookings, guests, reports).
+**Pending, in the owner's priority order:**
+
+1. **Real OTP sending.** `OTP_SKIP=true`, so any code is accepted and the code is shown on
+   screen. Anyone can therefore log in as any number and read its messages and take its
+   notifications. This must be closed before guests use it — the SMS vendor already calls
+   `SMSInsert`, so sending the OTP through the same gateway is the obvious route. Then set
+   `OTP_SKIP=false`.
+2. **The homepage Flash banner.** The 2023 site embeds `flash/checkin banner.swf`, which no
+   browser can play, leaving a blank band on the homepage. The owner asked for a static
+   image in its place; not done yet.
+3. **Legacy Cloud Messaging API** is still enabled in Firebase and its server key was
+   visible in a screenshot the owner shared. It was deprecated in 2024 and nothing here
+   uses it — worth disabling.
+
+Also raised earlier: pulling logs directly from the SMS provider (MSG91/Textlocal/
+Fast2SMS/Twilio — not chosen), serving the same API on hotelarcopalace.com, and more admin
+pages (bookings, guests, reports).
