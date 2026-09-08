@@ -6,19 +6,15 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/admin/db-setup": ["./db/**"],
   },
-  // The public site is the original checkin.co.in pages, restored from the
-  // Wayback Machine snapshot of 2 Apr 2023 and served straight out of public/.
-  async rewrites() {
-    return [{ source: "/", destination: "/index.html" }];
-  },
-  // The admin panel moved to a secret base path. Old guessable URLs go home so
-  // nothing (not even a 404) hints that an admin area exists. /api/admin/* is
-  // untouched (different prefix).
+  // Root now opens the guest app directly (checkin.co.in -> /user). The old
+  // marketing site is still served from public/ at /index.html, /aboutus.html …
+  // Old admin-guess URLs go to the guest app too (nothing hints an admin area).
   async redirects() {
     return [
-      { source: "/admin", destination: "/", permanent: false },
-      { source: "/admin/:path*", destination: "/", permanent: false },
-      { source: "/login", destination: "/", permanent: false },
+      { source: "/", destination: "/user", permanent: false },
+      { source: "/admin", destination: "/user", permanent: false },
+      { source: "/admin/:path*", destination: "/user", permanent: false },
+      { source: "/login", destination: "/user", permanent: false },
     ];
   },
 };
