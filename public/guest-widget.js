@@ -182,8 +182,9 @@
     smsBox.innerHTML = st.view === "edit" ? editHtml() : pageHtml();
     var dt = smsBox.querySelector("#cksmsdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(renderSms); };
   }
+  function mob10() { return (st.mobile || "").replace(/^\+?91/, ""); }
   function pageHtml() {
-    var h = '<div class="top"><div><span class="ttl">My SMS Notifications</span> <span class="num">· +91 ' + esc(st.mobile) + '</span></div><button class="back" data-a="editprofile">✎ Edit Profile</button></div>';
+    var h = '<div class="top"><div><span class="ttl">My SMS Notifications</span></div><span class="num">+91 ' + esc(mob10()) + '</span></div>';
     h += '<div class="filt"><input class="dt" type="date" id="cksmsdate" value="' + esc(st.date) + '"><button class="rf" data-a="refresh" title="Refresh">⟳</button></div>';
     h += '<div class="total">Total SMS - ' + st.total + "</div>";
     if (st.date) h += '<button class="clr" data-a="clear">Clear Filters</button>';
@@ -205,7 +206,7 @@
     h += "</select></div>";
     h += '<div class="ckrow"><input class="ckinp" id="pf" placeholder="First Name" value="' + esc(p.firstName || "") + '"><input class="ckinp" id="pl" placeholder="Last Name" value="' + esc(p.lastName || "") + '"></div>';
     h += '<input class="ckinp" id="pe" style="margin-top:10px" type="email" placeholder="Email Address" value="' + esc(p.email || "") + '">';
-    h += '<div class="ckrow" style="margin-top:10px"><span class="ckpre">🇮🇳 +91</span><input class="ckinp" value="' + esc(st.mobile) + '" disabled></div>';
+    h += '<div class="ckrow" style="margin-top:10px"><span class="ckpre">🇮🇳 +91</span><input class="ckinp" value="' + esc(mob10()) + '" disabled></div>';
     h += '<div class="cklbl">Date of Birth</div>';
     h += '<div class="ckrow"><select class="ckinp" id="pm">' + opts(mm, cm, "MM") + '</select><select class="ckinp" id="pd">' + opts(dd, cd, "DD") + '</select><select class="ckinp" id="py">' + opts(yy, cy, "YYYY") + "</select></div>";
     if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
@@ -260,7 +261,7 @@
     var prof = nav.querySelector(".ck-prof");
     if (!prof) { prof = document.createElement("div"); prof.className = "ck-prof"; nav.insertBefore(prof, ul); }
     if (st.loggedIn) {
-      prof.innerHTML = '<div class="ck-av" data-cka="editprofile">👤</div><div class="ck-pn">' + esc(st.name || "User") + '</div><div class="ck-pm">+91 ' + esc(st.mobile) + '</div><button class="ck-ep" data-cka="editprofile">✎ Edit Profile</button>';
+      prof.innerHTML = '<div class="ck-av" data-cka="editprofile">👤</div><div class="ck-pn">' + esc(st.name || "User") + '</div><div class="ck-pm">+91 ' + esc(mob10()) + '</div><button class="ck-ep" data-cka="editprofile">✎ Edit Profile</button>';
     } else {
       prof.innerHTML = '<div class="ck-av" data-cka="dologin">👤</div><div class="ck-pn">Guest</div><button class="ck-ep" data-cka="dologin">Login / Sign in</button>';
     }
