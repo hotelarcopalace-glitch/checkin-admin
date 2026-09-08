@@ -480,6 +480,26 @@
     h.classList.remove('nav-open');
     var b=document.querySelector('.menu-btn');if(b)b.setAttribute('aria-expanded','false');
   });
+  // Keep the URL in sync with the visible section (clean at the top; no #contact
+  // stuck after you scroll back up). Skipped on the /sms page.
+  (function(){
+    var ids=['home','about','modules','why','clients','pricing','services','contact'];
+    var cur=null,tick=false;
+    function spy(){
+      tick=false;
+      if(location.pathname==='/sms')return;
+      var best='';
+      if(window.scrollY>30){
+        for(var i=0;i<ids.length;i++){
+          var el=document.getElementById(ids[i]);
+          if(el&&el.getBoundingClientRect().top<=90)best=ids[i];
+        }
+      }
+      if(best!==cur){cur=best;try{history.replaceState(null,'',best?('#'+best):location.pathname);}catch(e){}}
+    }
+    window.addEventListener('scroll',function(){if(!tick){tick=true;requestAnimationFrame(spy);}},{passive:true});
+    window.addEventListener('load',spy);
+  })();
   (function(){
     var els=document.querySelectorAll('.reveal');
     if(!('IntersectionObserver' in window)){els.forEach(function(e){e.classList.add('in')});return;}
