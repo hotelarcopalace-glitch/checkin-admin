@@ -1,12 +1,18 @@
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import UsersManager from "@/components/UsersManager";
 import { listAdminUsers, type AdminUser } from "@/lib/admin-users";
 import { hasDatabase } from "@/lib/db";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { SetupNotice } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Users · Checkin Admin" };
 
 export default async function UsersPage() {
+  const store = await cookies();
+  const session = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  if (session?.tag) redirect("/mng-x7k9/sms"); // hotel logins can't manage users
   const envAdmin = process.env.ADMIN_USERNAME || "admin";
 
   if (!hasDatabase()) {

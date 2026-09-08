@@ -55,12 +55,18 @@ export async function POST(req: Request) {
   }
 
   let sessionUser: string | null = null;
+  let sessionTag: string | null = null;
 
   // 1) Admin users stored in the DB (includes the recovery admin once its
-  //    password has been changed / "promoted" into the DB).
+  //    password has been changed / "promoted" into the DB). A user with an
+  //    sms_tag is a limited "hotel" login.
   if (hasDatabase()) {
     try {
-      sessionUser = await verifyAdminUser(username, password);
+      const u = await verifyAdminUser(username, password);
+      if (u) {
+        sessionUser = u.username;
+        sessionTag = u.tag;
+      }
     } catch {
       // DB down / table missing -> fall through to the env check.
     }
@@ -90,7 +96,7 @@ export async function POST(req: Request) {
   }
 
   attempts.delete(ip);
-  const token = await createSessionToken(sessionUser);
+  const token = await createSessionToken(sessionUser, sessionTag ?? undefined);
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,

@@ -19,7 +19,7 @@ function sql(file: string) {
 export async function POST(req: Request) {
   const store = await cookies();
   const session = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!session || session.tag) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   if (!hasDatabase()) {
     return NextResponse.json(

@@ -5,12 +5,21 @@ import { useEffect, useState } from "react";
 
 type NumberOpt = { recipient: string; guest_name: string | null; c: number };
 
-export default function SmsFilters({ numbers = [] }: { numbers?: NumberOpt[] }) {
+export default function SmsFilters({
+  numbers = [],
+  hotels = [],
+  canDelete = true,
+}: {
+  numbers?: NumberOpt[];
+  hotels?: string[];
+  canDelete?: boolean;
+}) {
   const router = useRouter();
   const params = useSearchParams();
 
   const [q, setQ] = useState(params.get("q") ?? "");
   const [number, setNumber] = useState(params.get("number") ?? "");
+  const [tag, setTag] = useState(params.get("tag") ?? "");
   const [from, setFrom] = useState(params.get("from") ?? "");
   const [to, setTo] = useState(params.get("to") ?? "");
   const [busy, setBusy] = useState(false);
@@ -19,6 +28,7 @@ export default function SmsFilters({ numbers = [] }: { numbers?: NumberOpt[] }) 
   useEffect(() => {
     setQ(params.get("q") ?? "");
     setNumber(params.get("number") ?? "");
+    setTag(params.get("tag") ?? "");
     setFrom(params.get("from") ?? "");
     setTo(params.get("to") ?? "");
   }, [params]);
@@ -28,6 +38,7 @@ export default function SmsFilters({ numbers = [] }: { numbers?: NumberOpt[] }) 
     const next = new URLSearchParams();
     if (from) next.set("from", from);
     if (to) next.set("to", to);
+    if (tag) next.set("tag", tag);
     if (number) next.set("number", number);
     if (q.trim()) next.set("q", q.trim());
     const size = params.get("size");
@@ -42,12 +53,13 @@ export default function SmsFilters({ numbers = [] }: { numbers?: NumberOpt[] }) 
 
   async function deleteRange() {
     setMsg(null);
-    if (!from && !to && !number && !q.trim()) {
-      setMsg("Pehle date range ya number/search chuno, phir Delete Range.");
+    if (!from && !to && !number && !tag && !q.trim()) {
+      setMsg("Pehle date range / hotel / number / search chuno, phir Delete Range.");
       return;
     }
     const what = [
       from || to ? `${from || "…"} → ${to || "…"}` : null,
+      tag ? `hotel ${tag}` : null,
       number ? `number ${number}` : null,
       q.trim() ? `“${q.trim()}”` : null,
     ]
@@ -60,7 +72,7 @@ export default function SmsFilters({ numbers = [] }: { numbers?: NumberOpt[] }) 
       const res = await fetch("/api/admin/delete-range", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from, to, number, q: q.trim() }),
+        body: JSON.stringify({ from, to, number, tag, q: q.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -80,6 +92,16 @@ export default function SmsFilters({ numbers = [] }: { numbers?: NumberOpt[] }) 
       <div className="filter-row">
         <input type="date" title="From date" value={from} onChange={(e) => setFrom(e.target.value)} />
         <input type="date" title="To date" value={to} onChange={(e) => setTo(e.target.value)} />
+        {hotels.length > 0 && (
+          <select value={tag} onChange={(e) => setTag(e.target.value)} title="Filter by hotel">
+            <option value="">All hotels</option>
+            {hotels.map((h) => (
+              <option key={h} value={h}>
+                {h}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={number} onChange={(e) => setNumber(e.target.value)} title="Filter by number">
           <option value="">All numbers</option>
           {numbers.map((n) => (
@@ -101,15 +123,17 @@ export default function SmsFilters({ numbers = [] }: { numbers?: NumberOpt[] }) 
         <button type="button" className="btn btn-ghost" onClick={clearAll}>
           Clear
         </button>
-        <button
-          type="button"
-          className="btn btn-danger"
-          onClick={deleteRange}
-          disabled={busy}
-          style={{ marginLeft: "auto" }}
-        >
-          {busy ? "Deleting…" : "Delete Range"}
-        </button>
+        {canDelete && (
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={deleteRange}
+            disabled={busy}
+            style={{ marginLeft: "auto" }}
+          >
+            {busy ? "Deleting…" : "Delete Range"}
+          </button>
+        )}
       </div>
       {msg && <div className="filter-msg">{msg}</div>}
     </form>

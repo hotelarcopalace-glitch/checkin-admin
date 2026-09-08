@@ -8,6 +8,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const store = await cookies();
   const session = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
   if (!session) redirect("/mng-x7k9/login");
+  const isHotel = !!session.tag; // hotel login: SMS-only, no admin tools
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -22,10 +23,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
 
           <nav className="flex items-center gap-1 overflow-x-auto">
-            <NavLink href="/mng-x7k9" label="Dashboard" icon="▦" />
-            <NavLink href="/mng-x7k9/sms" label="SMS List" icon="✉" />
-            <NavLink href="/mng-x7k9/users" label="Users" icon="◫" />
-            <NavLink href="/mng-x7k9/account" label="Change password" icon="⚿" />
+            {isHotel ? (
+              <>
+                <NavLink href="/mng-x7k9/sms" label="My Hotel SMS" icon="✉" />
+                <NavLink href="/mng-x7k9/account" label="Change password" icon="⚿" />
+              </>
+            ) : (
+              <>
+                <NavLink href="/mng-x7k9" label="Dashboard" icon="▦" />
+                <NavLink href="/mng-x7k9/sms" label="SMS List" icon="✉" />
+                <NavLink href="/mng-x7k9/users" label="Users" icon="◫" />
+                <NavLink href="/mng-x7k9/account" label="Change password" icon="⚿" />
+              </>
+            )}
           </nav>
 
           <div className="ml-auto flex items-center gap-3">

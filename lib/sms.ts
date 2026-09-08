@@ -24,6 +24,7 @@ export type SmsFilters = {
   q?: string;
   status?: string;
   number?: string;
+  tag?: string; // hotel tag: message must contain this text (e.g. "@Arco Team")
   from?: string;
   to?: string;
   page: number;
@@ -69,6 +70,10 @@ function buildWhere(f: SmsFilters) {
   if (f.number) {
     params.push(f.number);
     clauses.push(`recipient = $${params.length}`);
+  }
+  if (f.tag) {
+    params.push(`%${f.tag}%`);
+    clauses.push(`message ILIKE $${params.length}`);
   }
   if (f.from) {
     params.push(f.from);
@@ -166,11 +171,25 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
     q: one("q"),
     status: one("status"),
     number: one("number"),
+    tag: one("tag"),
     from: date("from"),
     to: date("to"),
     page,
     pageSize,
   };
+}
+
+/** Distinct hotel tags actually present in messages (best-effort, for super-admin filter). */
+export async function hotelTagsFromUsers(): Promise<string[]> {
+  assertDb();
+  try {
+    const rows = await query<{ sms_tag: string }>(
+      "SELECT DISTINCT sms_tag FROM admin_users WHERE sms_tag IS NOT NULL AND sms_tag <> '' ORDER BY sms_tag ASC"
+    );
+    return rows.map((r) => r.sms_tag);
+  } catch {
+    return [];
+  }
 }
 
 /** Distinct recipient numbers (for the filter dropdown), most-used first. */

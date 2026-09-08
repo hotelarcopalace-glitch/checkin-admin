@@ -1,10 +1,19 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import ClearDataButton from "@/components/ClearDataButton";
 import DeleteSmsButton from "@/components/DeleteSmsButton";
 import SmsFilters from "@/components/SmsFilters";
 import { SetupNotice } from "@/components/ui";
-import { DbNotReady, distinctNumbers, listSms, parseFilters, type SmsRow } from "@/lib/sms";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import {
+  DbNotReady,
+  distinctNumbers,
+  hotelTagsFromUsers,
+  listSms,
+  parseFilters,
+  type SmsRow,
+} from "@/lib/sms";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "SMS Notifications · Checkin Admin" };
@@ -42,12 +51,20 @@ export default async function SmsListPage({
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
+  const store = await cookies();
+  const session = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  const forcedTag = session?.tag ?? null; // hotel login -> locked to its own tag
+  const isHotel = !!forcedTag;
+
   const filters = parseFilters(sp);
+  if (forcedTag) filters.tag = forcedTag; // hotel user can never see other hotels' SMS
+
   const qs = new URLSearchParams(
     Object.entries(sp).flatMap(([k, v]) =>
       v === undefined ? [] : [[k, Array.isArray(v) ? v[0] : v] as [string, string]]
     )
   );
+  if (forcedTag) qs.set("tag", forcedTag); // keep the lock on export / pagination links
 
   let data;
   try {
@@ -65,8 +82,10 @@ export default async function SmsListPage({
   }
 
   let numbers: Awaited<ReturnType<typeof distinctNumbers>> = [];
+  let hotels: string[] = [];
   try {
     numbers = await distinctNumbers();
+    if (!isHotel) hotels = await hotelTagsFromUsers();
   } catch {
     numbers = [];
   }
@@ -82,10 +101,14 @@ export default async function SmsListPage({
   return (
     <div className="sms-page">
       <h1>SMS Notifications</h1>
-      <div className="sub">Messages and alerts received on the registered numbers.</div>
+      <div className="sub">
+        {isHotel
+          ? `Aapke hotel ke SMS (${forcedTag}).`
+          : "Messages and alerts received on the registered numbers."}
+      </div>
 
       <Suspense fallback={null}>
-        <SmsFilters numbers={numbers} />
+        <SmsFilters numbers={numbers} hotels={hotels} canDelete={!isHotel} />
       </Suspense>
 
       <div className="total">
@@ -133,9 +156,7 @@ export default async function SmsListPage({
                 </td>
                 <td className="dim mono">{row.source_ip || "—"}</td>
                 <td className="dim mono">{when(row.sent_at ?? row.created_at)}</td>
-                <td>
-                  <DeleteSmsButton id={row.id} />
-                </td>
+                <td>{isHotel ? <span className="dim">—</span> : <DeleteSmsButton id={row.id} />}</td>
               </tr>
             ))}
           </tbody>
@@ -183,9 +204,11 @@ export default async function SmsListPage({
               <span>{row.source_ip || row.provider || ""}</span>
               <span>{when(row.sent_at ?? row.created_at)}</span>
             </div>
-            <div style={{ marginTop: 10 }}>
-              <DeleteSmsButton id={row.id} />
-            </div>
+            {!isHotel && (
+              <div style={{ marginTop: 10 }}>
+                <DeleteSmsButton id={row.id} />
+              </div>
+            )}
           </div>
         ))}
         <div className="pager" style={{ border: 0 }}>
@@ -207,9 +230,11 @@ export default async function SmsListPage({
         </div>
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        <ClearDataButton total={stats.total} />
-      </div>
+      {!isHotel && (
+        <div style={{ marginTop: 18 }}>
+          <ClearDataButton total={stats.total} />
+        </div>
+      )}
     </div>
   );
 }

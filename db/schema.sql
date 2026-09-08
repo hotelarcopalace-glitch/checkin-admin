@@ -79,3 +79,8 @@ CREATE TABLE IF NOT EXISTS admin_users (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   last_login_at TIMESTAMPTZ
 );
+
+-- A user with an sms_tag is a HOTEL login: it can only see SMS whose text
+-- contains that tag (e.g. "@Arco Team"), and nothing else in the panel.
+-- A user with a NULL/empty tag is a full super-admin.
+ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS sms_tag TEXT;

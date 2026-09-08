@@ -13,9 +13,12 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Full admin only (a hotel login has a tag and must not manage users).
 async function requireSession() {
   const store = await cookies();
-  return verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  const s = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  if (!s || s.tag) return null;
+  return s;
 }
 
 export async function GET() {
@@ -38,10 +41,12 @@ export async function POST(req: Request) {
 
   let username = "";
   let password = "";
+  let tag = "";
   try {
     const body = await req.json();
     username = String(body.username ?? "").trim();
     password = String(body.password ?? "");
+    tag = String(body.tag ?? "").trim();
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
@@ -64,7 +69,7 @@ export async function POST(req: Request) {
   try {
     if (await adminUserExists(username))
       return NextResponse.json({ error: "That username already exists." }, { status: 409 });
-    await createAdminUser(username, password);
+    await createAdminUser(username, password, tag);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json(

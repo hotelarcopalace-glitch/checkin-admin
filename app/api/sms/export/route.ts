@@ -19,7 +19,9 @@ export async function GET(req: Request) {
 
   const sp = Object.fromEntries(new URL(req.url).searchParams.entries());
   try {
-    const rows = await allSmsForExport(parseFilters(sp));
+    const filters = parseFilters(sp);
+    if (session.tag) filters.tag = session.tag; // hotel login exports only its own SMS
+    const rows = await allSmsForExport(filters);
     const header = [
       "id",
       "recipient",

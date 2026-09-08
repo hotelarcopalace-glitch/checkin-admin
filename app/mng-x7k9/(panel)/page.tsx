@@ -1,11 +1,18 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { DbNotReady, listSms } from "@/lib/sms";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { formatDate, SetupNotice, StatCard, StatusBadge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Dashboard · Checkin Admin" };
 
 export default async function DashboardPage() {
+  const store = await cookies();
+  const session = await verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  if (session?.tag) redirect("/mng-x7k9/sms"); // hotel logins go straight to their SMS
+
   let data;
   try {
     data = await listSms({ page: 1, pageSize: 6 });

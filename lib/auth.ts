@@ -11,10 +11,14 @@ function secretKey() {
   return new TextEncoder().encode(secret);
 }
 
-export type Session = { username: string; role: "admin" };
+// tag set => a limited "hotel" login (sees only its own tagged SMS).
+// tag empty/undefined => full super-admin.
+export type Session = { username: string; role: "admin"; tag?: string };
 
-export async function createSessionToken(username: string): Promise<string> {
-  return new SignJWT({ username, role: "admin" })
+export async function createSessionToken(username: string, tag?: string): Promise<string> {
+  const claims: Record<string, unknown> = { username, role: "admin" };
+  if (tag && tag.trim()) claims.tag = tag.trim();
+  return new SignJWT(claims)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_HOURS}h`)
@@ -26,7 +30,8 @@ export async function verifySessionToken(token?: string): Promise<Session | null
   try {
     const { payload } = await jwtVerify(token, secretKey());
     if (payload.role !== "admin" || typeof payload.username !== "string") return null;
-    return { username: payload.username, role: "admin" };
+    const tag = typeof payload.tag === "string" && payload.tag.trim() ? payload.tag.trim() : undefined;
+    return { username: payload.username, role: "admin", tag };
   } catch {
     return null;
   }
