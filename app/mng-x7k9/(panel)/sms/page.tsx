@@ -4,7 +4,7 @@ import ClearDataButton from "@/components/ClearDataButton";
 import DeleteSmsButton from "@/components/DeleteSmsButton";
 import SmsFilters from "@/components/SmsFilters";
 import { SetupNotice } from "@/components/ui";
-import { DbNotReady, listSms, parseFilters, type SmsRow } from "@/lib/sms";
+import { DbNotReady, distinctNumbers, listSms, parseFilters, type SmsRow } from "@/lib/sms";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "SMS Notifications · Checkin Admin" };
@@ -64,6 +64,13 @@ export default async function SmsListPage({
     throw err;
   }
 
+  let numbers: Awaited<ReturnType<typeof distinctNumbers>> = [];
+  try {
+    numbers = await distinctNumbers();
+  } catch {
+    numbers = [];
+  }
+
   const { rows, pages, stats } = data;
   const startIndex = (filters.page - 1) * filters.pageSize;
   const pageLink = (page: number) => {
@@ -78,7 +85,7 @@ export default async function SmsListPage({
       <div className="sub">Messages and alerts received on the registered numbers.</div>
 
       <Suspense fallback={null}>
-        <SmsFilters />
+        <SmsFilters numbers={numbers} />
       </Suspense>
 
       <div className="total">
@@ -99,7 +106,6 @@ export default async function SmsListPage({
               <th style={{ width: 55 }}>S.No.</th>
               <th style={{ width: 160 }}>Mobile No</th>
               <th>SMS Text</th>
-              <th style={{ width: 150 }}>Template</th>
               <th style={{ width: 150 }}>Source IP</th>
               <th style={{ width: 150 }}>Created</th>
               <th style={{ width: 120 }}>Actions</th>
@@ -108,7 +114,7 @@ export default async function SmsListPage({
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="dim" style={{ padding: "34px 10px", textAlign: "center" }}>
+                <td colSpan={6} className="dim" style={{ padding: "34px 10px", textAlign: "center" }}>
                   No messages found. Try clearing the filters.
                 </td>
               </tr>
@@ -124,10 +130,6 @@ export default async function SmsListPage({
                   <Pills row={row} />
                   {row.message}
                   {row.error && <div style={{ color: "#c0392b", fontSize: 12 }}>⚠ {row.error}</div>}
-                </td>
-                <td className="dim">
-                  {row.template || "—"}
-                  <div className="dim" style={{ fontSize: 11.5 }}>{row.provider || "—"}</div>
                 </td>
                 <td className="dim mono">{row.source_ip || "—"}</td>
                 <td className="dim mono">{when(row.sent_at ?? row.created_at)}</td>

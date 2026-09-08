@@ -96,6 +96,19 @@ body {
   color: #5b6474;
   border: 1px solid #d7dbe7;
 }
+.btn-danger {
+  background: #fff;
+  color: #c0392b;
+  border: 1px solid #e6a9a9;
+}
+.btn-danger:hover {
+  background: #fdf1f1;
+}
+.filter-msg {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #5b6474;
+}
 .total {
   font-size: 14px;
   font-weight: 700;

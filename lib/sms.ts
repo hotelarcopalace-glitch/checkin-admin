@@ -23,6 +23,7 @@ export type SmsRow = {
 export type SmsFilters = {
   q?: string;
   status?: string;
+  number?: string;
   from?: string;
   to?: string;
   page: number;
@@ -64,6 +65,10 @@ function buildWhere(f: SmsFilters) {
   if (f.status && STATUSES.includes(f.status as SmsStatus)) {
     params.push(f.status);
     clauses.push(`status = $${params.length}`);
+  }
+  if (f.number) {
+    params.push(f.number);
+    clauses.push(`recipient = $${params.length}`);
   }
   if (f.from) {
     params.push(f.from);
@@ -157,5 +162,47 @@ export function parseFilters(sp: Record<string, string | string[] | undefined>):
     const v = one(k);
     return v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined;
   };
-  return { q: one("q"), status: one("status"), from: date("from"), to: date("to"), page, pageSize };
+  return {
+    q: one("q"),
+    status: one("status"),
+    number: one("number"),
+    from: date("from"),
+    to: date("to"),
+    page,
+    pageSize,
+  };
+}
+
+/** Distinct recipient numbers (for the filter dropdown), most-used first. */
+export async function distinctNumbers(): Promise<{ recipient: string; guest_name: string | null; c: number }[]> {
+  assertDb();
+  try {
+    return await query<{ recipient: string; guest_name: string | null; c: number }>(
+      `SELECT recipient,
+              MAX(guest_name) AS guest_name,
+              COUNT(*)::int AS c
+       FROM sms_messages
+       GROUP BY recipient
+       ORDER BY c DESC, recipient ASC
+       LIMIT 300`
+    );
+  } catch (err) {
+    rethrow(err);
+  }
+}
+
+/** Delete every message matching the given filters. Returns how many were removed. */
+export async function deleteSmsRange(f: SmsFilters): Promise<number> {
+  assertDb();
+  const { where, params } = buildWhere(f);
+  if (!where) return 0; // never allow an unfiltered delete-all here
+  try {
+    const rows = await query<{ id: string }>(
+      `DELETE FROM sms_messages ${where} RETURNING id::text`,
+      params
+    );
+    return rows.length;
+  } catch (err) {
+    rethrow(err);
+  }
 }
