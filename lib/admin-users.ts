@@ -23,12 +23,13 @@ export function validPassword(p: unknown): p is string {
   return typeof p === "string" && p.length >= 6 && p.length <= 200;
 }
 
-// A hotel tag must be a real "@Name…" of at least 12 chars — otherwise the
-// account is treated as a full admin (empty tag). Blank clears it.
+// A hotel tag is a real "@Name Team" style string (e.g. "@Arco Team").
+// Blank clears it (that account becomes a full admin). A too-short scrap
+// (under 4 chars, e.g. just "@") is ignored so it can't grab everything.
 export function cleanTag(t: unknown): string | null {
   const s = typeof t === "string" ? t.trim() : "";
   if (!s) return null;
-  return s.length >= 12 ? s.slice(0, 60) : null;
+  return s.length >= 4 ? s.slice(0, 60) : null;
 }
 
 export async function listAdminUsers(): Promise<AdminUser[]> {
