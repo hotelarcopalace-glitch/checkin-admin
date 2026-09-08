@@ -86,8 +86,9 @@
 
   var fab, menufab, ov, sheet;
 
+  function setPath(p) { try { if (location.pathname !== p) history.pushState({}, "", p); } catch (e) {} }
   function open() { render(); ov.classList.add("on"); }
-  function close() { ov.classList.remove("on"); try { sessionStorage.setItem("ck_skip", "1"); } catch (e) {} }
+  function close() { ov.classList.remove("on"); setPath("/"); try { sessionStorage.setItem("ck_skip", "1"); } catch (e) {} }
 
   async function refreshMe() {
     try {
@@ -150,6 +151,7 @@
 
   function renderPage() {
     if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
+    setPath("/sms");
     var h = "";
     h += '<div class="ckph"><button class="ckmenu" data-a="opendrawer">☰</button><div style="flex:1"><div class="ckpt">SMS Notifications</div><div class="ckpsub">+91 ' + esc(st.mobile) + (st.name ? " · " + esc(st.name) : "") + '</div></div><button class="ckback" data-a="close">✕</button></div>';
     h += '<div class="ckbody">';
@@ -262,9 +264,14 @@
     menufab.onclick = function () { st.drawer = true; ov.classList.add("on"); ov.classList.add("full"); render(); };
     ov.onclick = function (e) { if (e.target === ov && !st.loggedIn) close(); };
     sheet.addEventListener("click", onClick);
+    window.addEventListener("popstate", function () {
+      if (location.pathname === "/sms") { if (!ov.classList.contains("on")) open(); }
+      else { ov.classList.remove("on"); }
+    });
     refreshMe().then(function () {
       var skipped = false; try { skipped = sessionStorage.getItem("ck_skip") === "1"; } catch (e) {}
-      if (!st.loggedIn && !skipped) setTimeout(open, 700);
+      if (location.pathname === "/sms") { open(); }          // deep link -> SMS view (or login)
+      else if (!st.loggedIn && !skipped) setTimeout(open, 700);
     });
   }
 

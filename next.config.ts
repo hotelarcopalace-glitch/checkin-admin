@@ -9,7 +9,12 @@ const nextConfig: NextConfig = {
   // checkin.co.in shows the marketing site; the guest login lives on it as a
   // widget (public/guest-widget.js). Admin-guess URLs go home.
   async rewrites() {
-    return [{ source: "/", destination: "/index.html" }];
+    return [
+      { source: "/", destination: "/index.html" },
+      // The guest SMS-notifications view has its own URL; it renders on the same
+      // page (the widget opens the SMS view when the path is /sms).
+      { source: "/sms", destination: "/index.html" },
+    ];
   },
   async redirects() {
     return [
