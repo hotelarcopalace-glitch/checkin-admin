@@ -164,7 +164,7 @@ export default function UsersManager({
               <td className="px-4 py-3 text-slate-500">—</td>
               <td className="px-4 py-3 text-slate-500">—</td>
               <td className="px-4 py-3 text-right text-xs text-slate-400">
-                managed in server settings
+                password: use “Change password”
               </td>
             </tr>
 

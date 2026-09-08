@@ -19,21 +19,20 @@ export default async function AccountPage() {
         <h1 className="text-xl font-semibold tracking-tight">Change password</h1>
         <p className="mt-1 text-sm text-slate-500">
           Signed in as <strong className="text-slate-700">{session?.username}</strong>. Apna login
-          password yahan badlein.
+          password yahan badlein. <strong>Current password</strong> me abhi jo password se login
+          karte ho wahi daalein.
         </p>
       </div>
 
-      {isRecovery ? (
-        <div className="max-w-md rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-          Aap <strong>built-in recovery admin</strong> se logged-in ho — iska password server
-          settings (Vercel env) me hai, yahan se change nahi hota. <br />
-          <br />
-          <strong>Users</strong> page par apna admin user banao, phir usse login karke password
-          yahan se badal sakte ho.
+      {isRecovery && (
+        <div className="max-w-md rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Aap <strong>{envAdmin}</strong> (recovery admin) ho. Yahan password badalne ke baad
+          <strong> naya password DB me save</strong> ho jayega aur purana (server-settings wala)
+          band ho jayega.
         </div>
-      ) : (
-        <ChangePasswordForm />
       )}
+
+      <ChangePasswordForm />
     </div>
   );
 }

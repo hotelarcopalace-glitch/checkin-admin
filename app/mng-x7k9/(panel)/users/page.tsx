@@ -22,6 +22,9 @@ export default async function UsersPage() {
   let needsSetup = false;
   try {
     users = await listAdminUsers();
+    // The recovery admin is shown as its own fixed row, so drop it from the
+    // editable list even after it has been promoted into the DB.
+    users = users.filter((u) => u.username.toLowerCase() !== envAdmin.toLowerCase());
   } catch {
     needsSetup = true;
   }

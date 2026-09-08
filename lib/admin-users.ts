@@ -57,6 +57,16 @@ export async function setAdminUserPassword(id: string, password: string): Promis
   return rows.length > 0;
 }
 
+export async function getAdminUserByName(
+  username: string
+): Promise<{ id: string; username: string; password_hash: string } | null> {
+  const rows = await query<{ id: string; username: string; password_hash: string }>(
+    "SELECT id::text AS id, username, password_hash FROM admin_users WHERE lower(username) = lower($1) LIMIT 1",
+    [username.trim()]
+  );
+  return rows[0] ?? null;
+}
+
 /** Verify a login against the DB users. Returns the stored (canonical) username, else null. */
 export async function verifyAdminUser(username: string, password: string): Promise<string | null> {
   const rows = await query<{ id: string; username: string; password_hash: string }>(

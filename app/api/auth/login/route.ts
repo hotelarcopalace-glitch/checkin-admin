@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createSessionToken, SESSION_COOKIE, sessionMaxAge } from "@/lib/auth";
 import { verifyPassword } from "@/lib/password";
 import { hasDatabase } from "@/lib/db";
-import { verifyAdminUser } from "@/lib/admin-users";
+import { adminUserExists, verifyAdminUser } from "@/lib/admin-users";
 
 export const runtime = "nodejs";
 
@@ -54,22 +54,35 @@ export async function POST(req: Request) {
     );
   }
 
-  // 1) Bootstrap / recovery admin from env vars.
   let sessionUser: string | null = null;
-  if (
-    username.toLowerCase() === expectedUser.toLowerCase() &&
-    (await verifyPassword(password, expectedHash))
-  ) {
-    sessionUser = expectedUser;
-  }
 
-  // 2) Admin users created in-panel (stored in DB).
-  if (!sessionUser && hasDatabase()) {
+  // 1) Admin users stored in the DB (includes the recovery admin once its
+  //    password has been changed / "promoted" into the DB).
+  if (hasDatabase()) {
     try {
       sessionUser = await verifyAdminUser(username, password);
     } catch {
-      // DB down / table missing -> fall through to the failure below.
+      // DB down / table missing -> fall through to the env check.
     }
+  }
+
+  // 2) Bootstrap / recovery admin from env vars — accepted ONLY while that
+  //    username has no DB row yet (so the old env password is revoked once the
+  //    admin changes it in the panel). If the DB is down, still allow it.
+  if (
+    !sessionUser &&
+    username.toLowerCase() === expectedUser.toLowerCase() &&
+    (await verifyPassword(password, expectedHash))
+  ) {
+    let hasDbRow = false;
+    if (hasDatabase()) {
+      try {
+        hasDbRow = await adminUserExists(expectedUser);
+      } catch {
+        hasDbRow = false; // DB unreachable -> allow env recovery
+      }
+    }
+    if (!hasDbRow) sessionUser = expectedUser;
   }
 
   if (!sessionUser) {
