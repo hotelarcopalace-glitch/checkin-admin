@@ -1,5 +1,6 @@
-/* Checkin guest widget — a self-contained Login button + bottom-sheet popup +
-   messages panel, dropped onto the marketing site. Same-origin APIs, no deps. */
+/* Checkin guest widget — Login button + bottom-sheet OTP popup, and after login
+   a full-screen "SMS Notifications" page (date filter, total, message cards).
+   Self-contained, same-origin APIs, no deps. */
 (function () {
   if (window.__ckGuest) return;
   window.__ckGuest = true;
@@ -11,14 +12,16 @@
     logout: "/api/user/logout",
   };
 
-  var st = { loggedIn: false, mobile: "", name: "", messages: [], step: "mobile", dev: null, skip: false, busy: false, err: "" };
+  var st = { loggedIn: false, mobile: "", name: "", total: 0, messages: [], date: "", step: "mobile", code: "", dev: null, skip: false, busy: false, err: "", drawer: false, push: false };
 
   var css =
     "#ckfab{position:fixed;right:16px;bottom:16px;z-index:2147483000;background:#4f46e5;color:#fff;border:none;border-radius:999px;padding:13px 20px;font:600 15px system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 24px rgba(79,70,229,.4);cursor:pointer}" +
     "#ckov{position:fixed;inset:0;z-index:2147483001;display:none;align-items:flex-end;justify-content:center;background:rgba(15,23,42,.55);font:400 15px system-ui,-apple-system,Segoe UI,sans-serif}" +
     "#ckov.on{display:flex}" +
+    "#ckov.full{align-items:stretch;background:#eef1f6}" +
     "#cksheet{position:relative;width:100%;max-width:440px;max-height:90vh;overflow:auto;background:#fff;border-radius:22px 22px 0 0;padding:16px 16px 24px;box-shadow:0 -8px 40px rgba(0,0,0,.25)}" +
-    "@media(min-width:640px){#ckov{align-items:center}#cksheet{border-radius:22px}}" +
+    "#ckov.full #cksheet{max-width:480px;max-height:100vh;height:100vh;border-radius:0;padding:0;background:#eef1f6;box-shadow:0 0 40px rgba(0,0,0,.15);display:flex;flex-direction:column}" +
+    "@media(min-width:640px){#ckov:not(.full){align-items:center}#ckov:not(.full) #cksheet{border-radius:22px}}" +
     ".ckgrip{width:44px;height:5px;border-radius:999px;background:#e2e8f0;margin:2px auto 12px}" +
     ".ckban{position:relative;overflow:hidden;border-radius:16px;background:linear-gradient(90deg,#4f46e5,#7c3aed,#c026d3);color:#fff;padding:12px 36px 12px 12px}" +
     ".ckx{position:absolute;right:8px;top:8px;width:26px;height:26px;border:none;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font-size:14px;cursor:pointer}" +
@@ -35,15 +38,43 @@
     ".ckskip{width:100%;border:none;background:none;color:#94a3b8;font-size:14px;font-weight:500;padding:10px;cursor:pointer}" +
     ".ckerr{background:#fef2f2;color:#b91c1c;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:10px}" +
     ".ckinfo{background:#fffbeb;color:#92400e;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:10px}" +
-    ".ckmsg{border:1px solid #e2e8f0;border-radius:12px;padding:12px 14px;margin-top:8px}" +
-    ".ckmsg p{margin:0;font-size:14px;color:#1e293b}" +
-    ".ckmsg small{color:#94a3b8;font-size:12px}" +
-    ".cktop{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}" +
-    ".cklogout{border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:600;color:#334155;cursor:pointer}";
+    /* full page */
+    ".ckph{display:flex;align-items:center;gap:12px;background:#fff;padding:12px 14px;border-bottom:1px solid #e5e9f0;flex:none}" +
+    ".ckback{width:34px;height:34px;border:none;border-radius:999px;background:#f1f5f9;color:#334155;font-size:18px;cursor:pointer}" +
+    ".ckpt{font-size:16px;font-weight:700;color:#0f172a}" +
+    ".ckpsub{font-size:12px;color:#94a3b8}" +
+    ".ckbody{flex:1;overflow:auto;padding:14px}" +
+    ".ckfrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}" +
+    ".ckdate{flex:1;border:1px solid #cbd5e1;border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;outline:none}" +
+    ".ckref{width:44px;height:44px;flex:none;border:none;border-radius:12px;background:#4f46e5;color:#fff;font-size:18px;cursor:pointer}" +
+    ".cktotal{font-size:22px;font-weight:800;color:#1e3a8a;margin:6px 2px 0}" +
+    ".ckclear{border:none;background:none;color:#4f46e5;font-size:13px;font-weight:600;cursor:pointer;padding:2px 0;margin-bottom:8px}" +
+    ".ckcap{display:flex;justify-content:space-between;align-items:baseline;margin:6px 2px 8px}" +
+    ".ckcap b{font-size:15px;color:#0f172a}" +
+    ".ckcap span{font-size:12px;color:#94a3b8}" +
+    ".ckcard{background:#fff;border:1px solid #e5e9f0;border-radius:14px;padding:12px 14px;margin-bottom:9px;box-shadow:0 1px 2px rgba(0,0,0,.03)}" +
+    ".ckcard p{margin:0;font-size:14px;color:#1e3a8a;line-height:1.45}" +
+    ".ckcard small{display:block;margin-top:5px;color:#94a3b8;font-size:12px}" +
+    ".ckempty{text-align:center;color:#94a3b8;padding:40px 0;font-size:14px}" +
+    ".ckmenu{width:34px;height:34px;border:none;border-radius:999px;background:#f1f5f9;color:#334155;font-size:16px;cursor:pointer}" +
+    ".ckdrw{position:absolute;inset:0;z-index:5;display:none}" +
+    ".ckdrw.on{display:block}" +
+    ".ckdrw .bg{position:absolute;inset:0;background:rgba(0,0,0,.4)}" +
+    ".ckdrw .panel{position:absolute;left:0;top:0;bottom:0;width:78%;max-width:300px;background:linear-gradient(165deg,#fb923c,#ea580c);color:#fff;overflow:auto;padding:22px 0;animation:ckslide .18s ease-out}" +
+    "@keyframes ckslide{from{transform:translateX(-100%)}to{transform:none}}" +
+    ".ckdrw .prof{text-align:center;padding:4px 16px 14px}" +
+    ".ckdrw .av{width:64px;height:64px;border-radius:999px;border:2px solid #fff;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:26px;background:rgba(255,255,255,.18)}" +
+    ".ckdrw .edit{border:1px solid rgba(255,255,255,.6);background:none;color:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-top:6px}" +
+    ".ckdi{display:flex;align-items:center;gap:12px;padding:13px 20px;font-size:15px;font-weight:500;cursor:pointer}" +
+    ".ckdi:hover{background:rgba(255,255,255,.12)}" +
+    ".ckdi .sw{margin-left:auto;width:38px;height:22px;border-radius:999px;background:rgba(255,255,255,.35);position:relative;flex:none}" +
+    ".ckdi .sw.on{background:#22c55e}" +
+    ".ckdi .sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:999px;background:#fff;transition:.15s}" +
+    ".ckdi .sw.on::after{left:18px}";
 
   function el(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
-  function fmt(v) { var d = new Date(v); return isNaN(d) ? "" : d.toLocaleString(); }
+  function fmt(v) { var d = new Date(v); if (isNaN(d)) return ""; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
 
   var fab, ov, sheet;
 
@@ -52,11 +83,13 @@
 
   async function refreshMe() {
     try {
-      var r = await fetch(API.me, { credentials: "same-origin" });
+      var url = API.me + (st.date ? "?date=" + encodeURIComponent(st.date) : "");
+      var r = await fetch(url, { credentials: "same-origin" });
       var d = await r.json();
-      st.loggedIn = !!d.loggedIn; st.mobile = d.mobile || ""; st.name = d.name || ""; st.messages = d.messages || [];
+      st.loggedIn = !!d.loggedIn; st.mobile = d.mobile || ""; st.name = d.name || ""; st.messages = d.messages || []; st.total = d.total || 0;
     } catch (e) { st.loggedIn = false; }
-    fab.textContent = st.loggedIn ? "🔔 My Messages" : "Login";
+    if (fab) fab.textContent = st.loggedIn ? "🔔 My SMS" : "Login";
+    ov.classList.toggle("full", st.loggedIn);
   }
 
   async function sendOtp() {
@@ -64,7 +97,7 @@
     try {
       var r = await fetch(API.send, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mobile: st.mobile }) });
       var d = await r.json();
-      if (!r.ok) { st.err = d.error || "Could not send code."; }
+      if (!r.ok) st.err = d.error || "Could not send code.";
       else { st.dev = d.devCode || null; st.skip = !!d.skipVerification; st.step = "otp"; }
     } catch (e) { st.err = "Network error."; }
     st.busy = false; render();
@@ -82,36 +115,56 @@
 
   async function logout() {
     try { await fetch(API.logout, { method: "POST", credentials: "same-origin" }); } catch (e) {}
-    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; await refreshMe(); render();
+    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; await refreshMe(); render();
   }
 
-  function render() {
+  function renderLogin() {
     var h = '<div class="ckgrip"></div>';
-    if (st.loggedIn) {
-      h += '<div class="ckban"><button class="ckx" data-a="close">✕</button><div class="ckbanrow"><div class="ckbadge">🔔</div><div><div style="font-weight:600">' + esc(st.name || "My Messages") + '</div><div style="font-size:12px;opacity:.9">+91 ' + esc(st.mobile) + '</div></div></div></div>';
-      h += '<div class="cktop" style="margin-top:14px"><div class="ckh" style="margin:0">Messages</div><button class="cklogout" data-a="logout">Log out</button></div>';
-      if (!st.messages.length) h += '<p class="cksub">Abhi koi message nahi. Naya aate hi yahan dikhega.</p>';
-      st.messages.forEach(function (m) { h += '<div class="ckmsg"><p>' + esc(m.message) + '</p><small>' + esc(fmt(m.created_at)) + "</small></div>"; });
+    h += '<div class="ckban"><button class="ckx" data-a="close">✕</button><div class="ckbanrow"><div class="ckbadge">🔔</div><div><div style="font-weight:600">Login Now</div><div style="font-size:12px;opacity:.9">Login karke apne hotel messages &amp; alerts turant paayein ✨</div></div></div></div>';
+    h += '<div class="ckh">Login with Mobile</div><div class="cksub">Hum aapke number par OTP bhejenge.</div>';
+    if (st.step === "mobile") {
+      h += '<div class="ckrow"><span class="ckpre">🇮🇳 +91</span><input class="ckinp" id="ckmob" inputmode="numeric" maxlength="10" placeholder="Enter mobile number" value="' + esc(st.mobile) + '"></div>';
+      if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
+      h += '<button class="ckbtn" data-a="send"' + (st.busy ? " disabled" : "") + ">" + (st.busy ? "Sending…" : "Send OTP →") + "</button>";
+      h += '<button class="ckskip" data-a="close">Skip for now</button>';
     } else {
-      h += '<div class="ckban"><button class="ckx" data-a="close">✕</button><div class="ckbanrow"><div class="ckbadge">🔔</div><div><div style="font-weight:600">Login Now</div><div style="font-size:12px;opacity:.9">Login karke apne hotel messages &amp; alerts turant paayein ✨</div></div></div></div>';
-      h += '<div class="ckh">Login with Mobile</div><div class="cksub">Hum aapke number par OTP bhejenge.</div>';
-      if (st.step === "mobile") {
-        h += '<div class="ckrow"><span class="ckpre">🇮🇳 +91</span><input class="ckinp" id="ckmob" inputmode="numeric" maxlength="10" placeholder="Enter mobile number" value="' + esc(st.mobile) + '"></div>';
-        if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
-        h += '<button class="ckbtn" data-a="send"' + (st.busy ? " disabled" : "") + ">" + (st.busy ? "Sending…" : "Send OTP →") + "</button>";
-        h += '<button class="ckskip" data-a="close">Skip for now</button>';
-      } else {
-        h += '<div class="cksub" style="margin-bottom:8px">Code sent to <b>+91 ' + esc(st.mobile) + '</b> · <a href="#" data-a="back" style="color:#4f46e5">Change</a></div>';
-        if (st.skip) h += '<div class="ckinfo">SMS abhi connect nahi hai — koi bhi code chalega.' + (st.dev ? " Aapka code: <b>" + esc(st.dev) + "</b>" : "") + "</div>";
-        h += '<input class="ckinp" id="ckcode" style="text-align:center;letter-spacing:.4em" inputmode="numeric" maxlength="6" placeholder="••••••" value="' + esc(st.code || "") + '">';
-        if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
-        h += '<button class="ckbtn" data-a="verify"' + (st.busy ? " disabled" : "") + ">" + (st.busy ? "Verifying…" : "Verify & continue") + "</button>";
-      }
+      h += '<div class="cksub" style="margin-bottom:8px">Code sent to <b>+91 ' + esc(st.mobile) + '</b> · <a href="#" data-a="back" style="color:#4f46e5">Change</a></div>';
+      if (st.skip) h += '<div class="ckinfo">SMS abhi connect nahi hai — koi bhi code chalega.' + (st.dev ? " Aapka code: <b>" + esc(st.dev) + "</b>" : "") + "</div>";
+      h += '<input class="ckinp" id="ckcode" style="text-align:center;letter-spacing:.4em" inputmode="numeric" maxlength="6" placeholder="••••••" value="' + esc(st.code || "") + '">';
+      if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
+      h += '<button class="ckbtn" data-a="verify"' + (st.busy ? " disabled" : "") + ">" + (st.busy ? "Verifying…" : "Verify & continue") + "</button>";
     }
     sheet.innerHTML = h;
     var mob = sheet.querySelector("#ckmob"); if (mob) mob.oninput = function () { st.mobile = this.value.replace(/\D/g, ""); };
     var cod = sheet.querySelector("#ckcode"); if (cod) { cod.oninput = function () { st.code = this.value.replace(/\D/g, ""); }; cod.focus(); }
   }
+
+  function renderPage() {
+    if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
+    var h = "";
+    h += '<div class="ckph"><button class="ckmenu" data-a="menu">☰</button><div style="flex:1"><div class="ckpt">SMS Notifications</div><div class="ckpsub">+91 ' + esc(st.mobile) + (st.name ? " · " + esc(st.name) : "") + '</div></div><button class="ckback" data-a="close">✕</button></div>';
+    h += '<div class="ckbody">';
+    h += '<div class="ckfrow"><input class="ckdate" type="date" id="ckdate" value="' + esc(st.date) + '"><button class="ckref" data-a="refresh" title="Refresh">⟳</button></div>';
+    h += '<div class="cktotal">Total SMS - ' + st.total + "</div>";
+    if (st.date) h += '<button class="ckclear" data-a="clear">Clear Filters</button>';
+    h += '<div class="ckcap"><b>' + (st.date ? "Filtered" : "All SMS") + "</b><span>" + st.messages.length + " messages</span></div>";
+    if (!st.messages.length) h += '<div class="ckempty">Koi SMS nahi mila.' + (st.date ? " (is date par)" : "") + "</div>";
+    st.messages.forEach(function (m) { h += '<div class="ckcard"><p>' + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>"; });
+    h += "</div>";
+    // orange side drawer
+    h += '<div class="ckdrw' + (st.drawer ? " on" : "") + '"><div class="bg" data-a="menu"></div><div class="panel">';
+    h += '<div class="prof"><div class="av">👤</div><div style="font-weight:600;font-size:16px">' + esc(st.name || "User") + '</div><div style="font-size:12px;opacity:.9">+91 ' + esc(st.mobile) + '</div><button class="edit" data-a="profile">✎ Edit profile</button></div>';
+    h += '<div class="ckdi" data-a="menu">📩 SMS Notifications <span class="sw on"></span></div>';
+    h += '<div class="ckdi" data-a="push">🔔 Push Notification <span class="sw' + (st.push ? " on" : "") + '"></span></div>';
+    h += '<div class="ckdi" data-a="help">💬 Help &amp; Support</div>';
+    h += '<div class="ckdi" data-a="share">↗ Share App</div>';
+    h += '<div class="ckdi" data-a="logout">⎋ Log out</div>';
+    h += "</div></div>";
+    sheet.innerHTML = h;
+    var dt = sheet.querySelector("#ckdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(render); };
+  }
+
+  function render() { if (st.loggedIn) renderPage(); else renderLogin(); }
 
   function onClick(e) {
     var t = e.target.closest("[data-a]"); if (!t) return;
@@ -122,6 +175,27 @@
     else if (a === "verify") verify();
     else if (a === "back") { st.step = "mobile"; st.code = ""; st.err = ""; render(); }
     else if (a === "logout") logout();
+    else if (a === "refresh") refreshMe().then(render);
+    else if (a === "clear") { st.date = ""; refreshMe().then(render); }
+    else if (a === "menu") { st.drawer = !st.drawer; render(); }
+    else if (a === "profile") saveProfile();
+    else if (a === "push") askPush();
+    else if (a === "help") { window.location.href = "mailto:hotelarcopalace@gmail.com?subject=Help%20-%20Checkin"; }
+    else if (a === "share") { if (navigator.share) navigator.share({ title: "Checkin", text: "Apne hotel messages dekhein", url: location.origin }); else { try { navigator.clipboard.writeText(location.origin); alert("Link copy ho gaya: " + location.origin); } catch (e) {} } }
+  }
+
+  async function saveProfile() {
+    var n = window.prompt("Apna naam daalein:", st.name || "");
+    if (n === null) return;
+    try {
+      var r = await fetch("/api/user/profile", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ name: n }) });
+      if (r.ok) { st.name = (n || "").trim(); render(); }
+    } catch (e) {}
+  }
+
+  function askPush() {
+    if (typeof Notification === "undefined") { alert("Is browser me notifications support nahi."); return; }
+    Notification.requestPermission().then(function (p) { st.push = p === "granted"; render(); });
   }
 
   function boot() {
@@ -131,11 +205,11 @@
     sheet = ov.querySelector("#cksheet");
     document.body.appendChild(fab); document.body.appendChild(ov);
     fab.onclick = open;
-    ov.onclick = function (e) { if (e.target === ov) close(); };
+    ov.onclick = function (e) { if (e.target === ov && !st.loggedIn) close(); };
     sheet.addEventListener("click", onClick);
     refreshMe().then(function () {
       var skipped = false; try { skipped = sessionStorage.getItem("ck_skip") === "1"; } catch (e) {}
-      if (!st.loggedIn && !skipped) setTimeout(open, 700); // website par aate hi popup
+      if (!st.loggedIn && !skipped) setTimeout(open, 700);
     });
   }
 
