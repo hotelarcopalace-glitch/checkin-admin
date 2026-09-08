@@ -28,18 +28,14 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Guest area (unchanged).
-  if (pathname === "/user" || pathname.startsWith("/user/")) {
+  // Guest area. /user renders its own bottom-sheet login when logged out, so we
+  // no longer force a redirect there — only bounce an already-logged-in guest
+  // off the standalone /user/login page.
+  if (pathname === "/user/login") {
     const user = await verifyUserToken(req.cookies.get(USER_COOKIE)?.value);
-    if (pathname === "/user/login" && user) {
+    if (user) {
       const url = req.nextUrl.clone();
       url.pathname = "/user";
-      url.search = "";
-      return NextResponse.redirect(url);
-    }
-    if (pathname !== "/user/login" && !user) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/user/login";
       url.search = "";
       return NextResponse.redirect(url);
     }

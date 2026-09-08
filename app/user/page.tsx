@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import GuestLoginSheet from "@/components/GuestLoginSheet";
 import NotificationToggle from "@/components/NotificationToggle";
 import { formatDate, StatusBadge } from "@/components/ui";
 import { hasDatabase, query } from "@/lib/db";
@@ -18,7 +18,21 @@ type Row = {
 export default async function UserHome() {
   const store = await cookies();
   const session = await verifyUserToken(store.get(USER_COOKIE)?.value);
-  if (!session) redirect("/user/login");
+
+  // Not logged in -> show the page shell with the mobile-number bottom sheet.
+  if (!session) {
+    return (
+      <main className="min-h-screen bg-slate-50 px-4 py-10">
+        <div className="mx-auto w-full max-w-lg text-center">
+          <h1 className="text-lg font-semibold tracking-tight">Checkin — My messages</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Apne hotel messages/alerts mobile number se dekhein.
+          </p>
+        </div>
+        <GuestLoginSheet />
+      </main>
+    );
+  }
 
   let rows: Row[] = [];
   if (hasDatabase()) {
