@@ -36,7 +36,11 @@
     ".ckinfo{background:#FBF4E8;color:#7a4d0a;border:1px solid #F1CB86;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:10px}" +
     ".cklbl{font-size:13px;font-weight:700;color:#5E1B22;margin:14px 2px 6px}" +
     /* in-page SMS section */
-    "#ck-sms{max-width:760px;margin:0 auto;padding:16px 16px 34px;min-height:60vh}" +
+    "#ck-sms{max-width:760px;margin:0 auto;padding:16px 16px 84px;min-height:60vh}" +
+    "#ck-bar{position:fixed;bottom:0;left:0;right:0;z-index:800;display:none;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #E7D9BF;box-shadow:0 -4px 16px rgba(67,16,22,.08)}" +
+    "#ck-bar.on{display:flex}" +
+    "#ck-bar button{flex:1;border:1px solid #E7D9BF;background:#FBF4E8;color:#5E1B22;border-radius:12px;padding:11px;font-weight:700;font-size:.92rem;cursor:pointer}" +
+    "#ck-bar button.pri{background:#5E1B22;color:#FBF4E8;border-color:#5E1B22}" +
     "#ck-sms .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}" +
     "#ck-sms .ttl{font:700 1.05rem 'Fraunces',Georgia,serif;color:#5E1B22;display:inline}" +
     "#ck-sms .num{font-size:.8rem;color:#7C6A55;font-weight:600}" +
@@ -59,11 +63,11 @@
     ".ck-sw.on{background:#198754}" +
     ".ck-sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:999px;background:#fff;transition:.15s}" +
     ".ck-sw.on::after{left:18px}" +
-    "nav.main .ck-prof{margin:0 0 8px;padding:4px 18px 14px;text-align:center;border-bottom:1px solid #E7D9BF}" +
-    "nav.main .ck-av{width:58px;height:58px;border-radius:999px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:26px;background:#5E1B22;color:#E0952A;border:2px solid #E0952A;cursor:pointer}" +
-    "nav.main .ck-pn{font-weight:700;font-size:1rem;color:#5E1B22}" +
-    "nav.main .ck-pm{font-size:.78rem;color:#7C6A55}" +
-    "nav.main .ck-ep{margin-top:8px;border:1px solid #E0952A;background:#FBF4E8;color:#5E1B22;border-radius:999px;padding:6px 16px;font-weight:700;font-size:.8rem;cursor:pointer}" +
+    "nav.main .ck-prof{margin:0 0 4px;padding:0 18px 10px;text-align:center;border-bottom:1px solid #E7D9BF}" +
+    "nav.main .ck-av{width:48px;height:48px;border-radius:999px;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:22px;background:#5E1B22;color:#E0952A;border:2px solid #E0952A;cursor:pointer}" +
+    "nav.main .ck-pn{font-weight:700;font-size:.95rem;color:#5E1B22}" +
+    "nav.main .ck-pm{font-size:.75rem;color:#7C6A55}" +
+    "nav.main .ck-ep{margin-top:6px;border:1px solid #E0952A;background:#FBF4E8;color:#5E1B22;border-radius:999px;padding:5px 14px;font-weight:700;font-size:.78rem;cursor:pointer}" +
     "body.ck-sms-mode footer{padding-top:26px;padding-bottom:26px}" +
     "body.ck-sms-mode footer .wrap>*+*{margin-top:10px}";
 
@@ -71,7 +75,7 @@
   function fmt(v) { var d = new Date(v); if (isNaN(d)) return ""; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
   function elem(h) { var d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstChild; }
 
-  var fab, ov, sheet, marketMain, smsBox;
+  var fab, ov, sheet, marketMain, smsBox, bar;
 
   function setPath(p) { try { if (location.pathname !== p) history.pushState({}, "", p); } catch (e) {} }
   function closeSiteMenu() { var h = document.querySelector("header"); if (h) h.classList.remove("nav-open"); }
@@ -160,6 +164,7 @@
     st.view = view || "messages";
     if (marketMain) marketMain.hidden = true;
     smsBox.hidden = false;
+    if (bar) bar.classList.add("on");
     document.body.classList.add("ck-sms-mode");
     setPath("/sms");
     try { window.scrollTo(0, 0); } catch (e) {}
@@ -168,6 +173,7 @@
   function hideSms() {
     if (marketMain) marketMain.hidden = false;
     if (smsBox) smsBox.hidden = true;
+    if (bar) bar.classList.remove("on");
     document.body.classList.remove("ck-sms-mode");
     setPath("/");
   }
@@ -279,12 +285,18 @@
 
   function boot() {
     var s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
-    fab = elem('<button id="ckfab">Login</button>');
     ov = elem('<div id="ckov"><div id="cksheet"></div></div>');
     sheet = ov.querySelector("#cksheet");
-    document.body.appendChild(fab); document.body.appendChild(ov);
+    document.body.appendChild(ov);
     ensureSmsBox();
-    fab.onclick = fabClick;
+    bar = elem('<div id="ck-bar"><button data-a="barback">← Back</button><button class="pri" data-a="home">🏠 Home</button></div>');
+    document.body.appendChild(bar);
+    bar.addEventListener("click", function (e) {
+      var t = e.target.closest("[data-a]"); if (!t) return;
+      var a = t.getAttribute("data-a");
+      if (a === "home") hideSms();
+      else if (a === "barback") { if (st.view === "edit") { st.view = "messages"; renderSms(); } else hideSms(); }
+    });
     ov.onclick = function (e) { if (e.target === ov) closeLogin(); };
     sheet.addEventListener("click", onSheetClick);
     // Logo = Home (also leaves the SMS page).
