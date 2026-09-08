@@ -12,7 +12,8 @@
     logout: "/api/user/logout",
   };
 
-  var st = { loggedIn: false, mobile: "", name: "", total: 0, messages: [], date: "", step: "mobile", code: "", dev: null, skip: false, busy: false, err: "", drawer: false, push: false };
+  var st = { loggedIn: false, mobile: "", name: "", total: 0, messages: [], date: "", step: "mobile", code: "", dev: null, skip: false, busy: false, err: "", drawer: false, push: false, view: "messages", profile: {} };
+  var RATE_URL = "https://www.google.com/search?q=Hotel+Arco+Palace+Jaipur+review"; // owner can change
 
   var css =
     "#ckfab{position:fixed;right:16px;bottom:16px;z-index:2147483000;background:#4f46e5;color:#fff;border:none;border-radius:999px;padding:13px 20px;font:600 15px system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 24px rgba(79,70,229,.4);cursor:pointer}" +
@@ -56,6 +57,11 @@
     ".ckcard p{margin:0;font-size:14px;color:#1e3a8a;line-height:1.45}" +
     ".ckcard small{display:block;margin-top:5px;color:#94a3b8;font-size:12px}" +
     ".ckempty{text-align:center;color:#94a3b8;padding:40px 0;font-size:14px}" +
+    ".ckfld{margin-bottom:10px}" +
+    ".cklbl{font-size:13px;font-weight:600;color:#334155;margin:14px 2px 6px}" +
+    "select.ckinp{-webkit-appearance:none;appearance:none;background:#fff}" +
+    "#cksheet .ckrow{margin-bottom:0}" +
+    ".ckinp[disabled]{background:#f1f5f9;color:#64748b}" +
     ".ckmenu{width:34px;height:34px;border:none;border-radius:999px;background:#f1f5f9;color:#334155;font-size:16px;cursor:pointer}" +
     ".ckdrw{position:absolute;inset:0;z-index:5;display:none}" +
     ".ckdrw.on{display:block}" +
@@ -86,7 +92,7 @@
       var url = API.me + (st.date ? "?date=" + encodeURIComponent(st.date) : "");
       var r = await fetch(url, { credentials: "same-origin" });
       var d = await r.json();
-      st.loggedIn = !!d.loggedIn; st.mobile = d.mobile || ""; st.name = d.name || ""; st.messages = d.messages || []; st.total = d.total || 0;
+      st.loggedIn = !!d.loggedIn; st.mobile = d.mobile || ""; st.name = d.name || ""; st.messages = d.messages || []; st.total = d.total || 0; st.profile = d.profile || {};
     } catch (e) { st.loggedIn = false; }
     if (fab) fab.textContent = st.loggedIn ? "🔔 My SMS" : "Login";
     ov.classList.toggle("full", st.loggedIn);
@@ -153,9 +159,11 @@
     h += "</div>";
     // orange side drawer
     h += '<div class="ckdrw' + (st.drawer ? " on" : "") + '"><div class="bg" data-a="menu"></div><div class="panel">';
-    h += '<div class="prof"><div class="av">👤</div><div style="font-weight:600;font-size:16px">' + esc(st.name || "User") + '</div><div style="font-size:12px;opacity:.9">+91 ' + esc(st.mobile) + '</div><button class="edit" data-a="profile">✎ Edit profile</button></div>';
+    h += '<div class="prof"><div class="av">👤</div><div style="font-weight:600;font-size:16px">' + esc(st.name || "User") + '</div><div style="font-size:12px;opacity:.9">+91 ' + esc(st.mobile) + '</div><button class="edit" data-a="editprofile">✎ Edit profile</button></div>';
     h += '<div class="ckdi" data-a="menu">📩 SMS Notifications <span class="sw on"></span></div>';
     h += '<div class="ckdi" data-a="push">🔔 Push Notification <span class="sw' + (st.push ? " on" : "") + '"></span></div>';
+    h += '<div class="ckdi" data-a="editprofile">👤 Edit Profile</div>';
+    h += '<div class="ckdi" data-a="rate">⭐ Rate on Google</div>';
     h += '<div class="ckdi" data-a="help">💬 Help &amp; Support</div>';
     h += '<div class="ckdi" data-a="share">↗ Share App</div>';
     h += '<div class="ckdi" data-a="logout">⎋ Log out</div>';
@@ -164,7 +172,35 @@
     var dt = sheet.querySelector("#ckdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(render); };
   }
 
-  function render() { if (st.loggedIn) renderPage(); else renderLogin(); }
+  function renderEdit() {
+    var p = st.profile || {};
+    var titles = ["", "Mr.", "Mrs.", "Ms.", "Dr."];
+    var mm = [], dd = [], yy = [];
+    for (var i = 1; i <= 12; i++) mm.push(("0" + i).slice(-2));
+    for (var j = 1; j <= 31; j++) dd.push(("0" + j).slice(-2));
+    for (var y = new Date().getFullYear(); y >= 1940; y--) yy.push("" + y);
+    var dob = (p.dob || "").split("-"); // stored YYYY-MM-DD
+    var cy = dob[0] || "", cm = dob[1] || "", cd = dob[2] || "";
+    function opts(arr, cur, ph) { var s = '<option value="">' + ph + "</option>"; arr.forEach(function (v) { if (v) s += '<option value="' + v + '"' + (v === cur ? " selected" : "") + ">" + v + "</option>"; }); return s; }
+    var h = "";
+    h += '<div class="ckph"><button class="ckback" data-a="tomsg">←</button><div style="flex:1"><div class="ckpt">Edit Profile</div><div class="ckpsub">Manage your account details</div></div></div>';
+    h += '<div class="ckbody">';
+    h += '<div class="ckfld"><select class="ckinp" id="pt">';
+    titles.forEach(function (t) { h += '<option value="' + t + '"' + (t === (p.title || "") ? " selected" : "") + ">" + (t || "Title") + "</option>"; });
+    h += "</select></div>";
+    h += '<div class="ckrow"><input class="ckinp" id="pf" placeholder="First Name" value="' + esc(p.firstName || "") + '"><input class="ckinp" id="pl" placeholder="Last Name" value="' + esc(p.lastName || "") + '"></div>';
+    h += '<input class="ckinp" id="pe" style="margin-top:10px" type="email" placeholder="Email Address" value="' + esc(p.email || "") + '">';
+    h += '<div class="ckrow" style="margin-top:10px"><span class="ckpre">🇮🇳 +91</span><input class="ckinp" value="' + esc(st.mobile) + '" disabled></div>';
+    h += '<div class="cklbl">Date of Birth</div>';
+    h += '<div class="ckrow"><select class="ckinp" id="pm">' + opts(mm, cm, "MM") + '</select><select class="ckinp" id="pd">' + opts(dd, cd, "DD") + '</select><select class="ckinp" id="py">' + opts(yy, cy, "YYYY") + "</select></div>";
+    if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
+    h += '<button class="ckbtn" style="background:#f97316;margin-top:16px" data-a="savep"' + (st.busy ? " disabled" : "") + ">" + (st.busy ? "Saving…" : "Edit Profile") + "</button>";
+    h += '<button class="ckbtn" style="background:#fff;color:#dc2626;border:1px solid #fca5a5;margin-top:10px" data-a="logout">Logout</button>';
+    h += "</div>";
+    sheet.innerHTML = h;
+  }
+
+  function render() { if (!st.loggedIn) renderLogin(); else if (st.view === "edit") renderEdit(); else renderPage(); }
 
   function onClick(e) {
     var t = e.target.closest("[data-a]"); if (!t) return;
@@ -178,19 +214,28 @@
     else if (a === "refresh") refreshMe().then(render);
     else if (a === "clear") { st.date = ""; refreshMe().then(render); }
     else if (a === "menu") { st.drawer = !st.drawer; render(); }
-    else if (a === "profile") saveProfile();
+    else if (a === "editprofile") { st.drawer = false; st.view = "edit"; st.err = ""; render(); }
+    else if (a === "tomsg") { st.view = "messages"; render(); }
+    else if (a === "savep") saveProfileForm();
+    else if (a === "rate") { window.open(RATE_URL, "_blank"); }
     else if (a === "push") askPush();
     else if (a === "help") { window.location.href = "mailto:hotelarcopalace@gmail.com?subject=Help%20-%20Checkin"; }
     else if (a === "share") { if (navigator.share) navigator.share({ title: "Checkin", text: "Apne hotel messages dekhein", url: location.origin }); else { try { navigator.clipboard.writeText(location.origin); alert("Link copy ho gaya: " + location.origin); } catch (e) {} } }
   }
 
-  async function saveProfile() {
-    var n = window.prompt("Apna naam daalein:", st.name || "");
-    if (n === null) return;
+  async function saveProfileForm() {
+    if (st.busy) return;
+    var g = function (id) { var e = sheet.querySelector("#" + id); return e ? e.value : ""; };
+    var mm = g("pm"), dd = g("pd"), yy = g("py");
+    var dob = (yy && mm && dd) ? yy + "-" + mm + "-" + dd : "";
+    var body = { title: g("pt"), firstName: g("pf"), lastName: g("pl"), email: g("pe"), dob: dob };
+    st.busy = true; st.err = ""; render();
     try {
-      var r = await fetch("/api/user/profile", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ name: n }) });
-      if (r.ok) { st.name = (n || "").trim(); render(); }
-    } catch (e) {}
+      var r = await fetch("/api/user/profile", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) });
+      var d = await r.json();
+      if (!r.ok) { st.err = d.error || "Save failed."; st.busy = false; render(); return; }
+      await refreshMe(); st.busy = false; st.view = "messages"; render();
+    } catch (e) { st.err = "Network error."; st.busy = false; render(); }
   }
 
   function askPush() {

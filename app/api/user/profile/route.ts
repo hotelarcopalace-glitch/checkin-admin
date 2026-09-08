@@ -6,7 +6,9 @@ import { USER_COOKIE, verifyUserToken } from "@/lib/user-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Guest updates their own display name.
+const s = (v: unknown, n = 60) => String(v ?? "").trim().slice(0, n);
+
+// Guest updates their own profile.
 export async function POST(req: Request) {
   const store = await cookies();
   const session = await verifyUserToken(store.get(USER_COOKIE)?.value);
@@ -14,18 +16,29 @@ export async function POST(req: Request) {
   if (!hasDatabase())
     return NextResponse.json({ error: "Database is not configured." }, { status: 503 });
 
-  let name = "";
+  let b: Record<string, unknown> = {};
   try {
-    name = String((await req.json())?.name ?? "").trim().slice(0, 60);
+    b = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
+  const title = s(b.title, 8);
+  const first = s(b.firstName);
+  const last = s(b.lastName);
+  const email = s(b.email, 120);
+  const dob = s(b.dob, 12);
+  // Prefer an explicit "name", else build it from first + last.
+  const name = s(b.name) || [first, last].filter(Boolean).join(" ");
+
   try {
     await query(
-      `INSERT INTO app_users (mobile, name, last_login_at) VALUES ($1, $2, NOW())
-       ON CONFLICT (mobile) DO UPDATE SET name = EXCLUDED.name`,
-      [session.mobile, name || null]
+      `INSERT INTO app_users (mobile, name, title, first_name, last_name, email, dob, last_login_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+       ON CONFLICT (mobile) DO UPDATE SET
+         name = EXCLUDED.name, title = EXCLUDED.title, first_name = EXCLUDED.first_name,
+         last_name = EXCLUDED.last_name, email = EXCLUDED.email, dob = EXCLUDED.dob`,
+      [session.mobile, name || null, title || null, first || null, last || null, email || null, dob || null]
     );
     return NextResponse.json({ ok: true, name });
   } catch {

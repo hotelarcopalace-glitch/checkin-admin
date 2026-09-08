@@ -38,15 +38,25 @@ export async function GET(req: Request) {
     } catch {
       messages = [];
     }
+    let profile = {};
     try {
-      const u = await query<{ name: string | null }>(
-        `SELECT name FROM app_users WHERE mobile = $1 LIMIT 1`,
+      const u = await query<{ name: string | null; title: string | null; first_name: string | null; last_name: string | null; email: string | null; dob: string | null }>(
+        `SELECT name, title, first_name, last_name, email, dob FROM app_users WHERE mobile = $1 LIMIT 1`,
         [session.mobile]
       );
-      name = u[0]?.name ?? "";
+      const p = u[0] || {};
+      name = p.name ?? "";
+      profile = {
+        title: p.title ?? "",
+        firstName: p.first_name ?? "",
+        lastName: p.last_name ?? "",
+        email: p.email ?? "",
+        dob: p.dob ?? "",
+      };
     } catch {
       name = "";
     }
+    return NextResponse.json({ loggedIn: true, mobile: session.mobile, name, profile, total, messages });
   }
 
   return NextResponse.json({ loggedIn: true, mobile: session.mobile, name, total, messages });
