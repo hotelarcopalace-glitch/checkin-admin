@@ -202,6 +202,16 @@
     .phone .t b{font-size:1.3rem}
     .wrap{padding:0 18px}
     section{padding:58px 0}
+    /* compact mobile footer: logo+name inline, no tagline, no Product col, contact in a row */
+    footer{padding:30px 0 20px}
+    .fcols{gap:14px}
+    .fcols>div:first-child{display:flex;flex-wrap:wrap;align-items:center;gap:9px}
+    footer .co{font-size:1.05rem;margin:0}
+    footer .tag{display:none}
+    .fcols>div:nth-child(2){display:none}
+    footer h4{margin-bottom:8px}
+    footer ul{flex-direction:row;flex-wrap:wrap;gap:6px 18px}
+    .fbot{margin-top:14px;padding-top:12px;font-size:.72rem;gap:4px 14px}
   }
   @media(max-width:380px){
     .mock .tiles{grid-template-columns:repeat(2,1fr)}
