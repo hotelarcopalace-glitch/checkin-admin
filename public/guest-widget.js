@@ -1,6 +1,7 @@
-/* Checkin guest widget — golden CHECKIN theme. Login popup + SMS-notifications
-   page (own /sms URL). Menu items live in the site's own nav drawer (no
-   separate menu). Self-contained, same-origin APIs, no deps. */
+/* Checkin guest widget — golden theme. Login = bottom-sheet popup. The SMS
+   notifications page renders IN THE PAGE (between the site header and footer),
+   so it is a real, responsive page — not a separate overlay. Menu items live in
+   the site's own nav. Same-origin APIs, no deps. */
 (function () {
   if (window.__ckGuest) return;
   window.__ckGuest = true;
@@ -10,13 +11,11 @@
   var RATE_URL = "https://www.google.com/search?q=Hotel+Arco+Palace+Jaipur+review";
 
   var css =
-    "#ckfab{position:fixed;right:16px;bottom:16px;z-index:2147483000;background:#5E1B22;color:#FBF4E8;border:1.5px solid #E0952A;border-radius:999px;padding:12px 20px;font:700 15px 'Figtree',system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 10px 26px rgba(67,16,22,.4);cursor:pointer}" +
-    "#ckov{position:fixed;inset:0;z-index:2147483001;display:none;align-items:flex-end;justify-content:center;background:rgba(43,16,22,.5);font:400 15px 'Figtree',system-ui,-apple-system,Segoe UI,sans-serif}" +
+    "#ckfab{position:fixed;right:16px;bottom:16px;z-index:900;background:#5E1B22;color:#FBF4E8;border:1.5px solid #E0952A;border-radius:999px;padding:12px 20px;font:700 15px 'Figtree',system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 10px 26px rgba(67,16,22,.4);cursor:pointer}" +
+    "#ckov{position:fixed;inset:0;z-index:2000;display:none;align-items:flex-end;justify-content:center;background:rgba(43,16,22,.5);font:400 15px 'Figtree',system-ui,-apple-system,Segoe UI,sans-serif}" +
     "#ckov.on{display:flex}" +
-    "#ckov.full{align-items:stretch;background:#f7efdf}" +
     "#cksheet{position:relative;width:100%;max-width:440px;max-height:92vh;overflow:auto;background:#fff;border-radius:22px 22px 0 0;padding:16px 16px 24px;box-shadow:0 -8px 40px rgba(43,16,22,.28)}" +
-    "#ckov.full #cksheet{max-width:480px;max-height:100vh;height:100vh;border-radius:0;padding:0;background:#f7efdf;display:flex;flex-direction:column}" +
-    "@media(min-width:640px){#ckov:not(.full){align-items:center}#ckov:not(.full) #cksheet{border-radius:22px}}" +
+    "@media(min-width:640px){#ckov{align-items:center}#cksheet{border-radius:22px}}" +
     ".ckgrip{width:44px;height:5px;border-radius:999px;background:#eaddc4;margin:2px auto 12px}" +
     ".ckban{position:relative;overflow:hidden;border-radius:16px;background:linear-gradient(120deg,#5E1B22,#7A2A31);color:#FBF4E8;padding:12px 36px 12px 12px}" +
     ".ckx{position:absolute;right:8px;top:8px;width:26px;height:26px;border:none;border-radius:999px;background:rgba(255,255,255,.2);color:#fff;font-size:14px;cursor:pointer}" +
@@ -26,45 +25,60 @@
     ".cksub{font-size:14px;color:#7C6A55;margin:0 2px 14px}" +
     ".ckrow{display:flex;gap:8px}" +
     ".ckpre{display:flex;align-items:center;gap:4px;border:1px solid #E7D9BF;background:#FBF4E8;border-radius:12px;padding:0 12px;font-weight:700;color:#5E1B22}" +
-    ".ckinp{width:100%;border:1px solid #E7D9BF;border-radius:12px;padding:13px 14px;font-size:16px;outline:none;box-sizing:border-box;color:#2C231B}" +
+    ".ckinp{width:100%;border:1px solid #E7D9BF;border-radius:12px;padding:13px 14px;font-size:16px;outline:none;box-sizing:border-box;color:#2C231B;background:#fff}" +
     ".ckinp:focus{border-color:#E0952A;box-shadow:0 0 0 3px rgba(224,149,42,.18)}" +
+    "select.ckinp{-webkit-appearance:none;appearance:none}" +
+    ".ckinp[disabled]{background:#FBF4E8;color:#7C6A55}" +
     ".ckbtn{width:100%;border:none;border-radius:12px;background:#5E1B22;color:#FBF4E8;padding:14px;font-size:16px;font-weight:700;cursor:pointer;margin-top:12px}" +
     ".ckbtn:disabled{opacity:.6}" +
     ".ckskip{width:100%;border:none;background:none;color:#a08a6e;font-size:14px;font-weight:600;padding:10px;cursor:pointer}" +
     ".ckerr{background:#fbeaea;color:#8a1f1f;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:10px}" +
     ".ckinfo{background:#FBF4E8;color:#7a4d0a;border:1px solid #F1CB86;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:10px}" +
-    ".ckph{display:flex;align-items:center;gap:12px;background:#5E1B22;color:#FBF4E8;padding:14px 16px;flex:none}" +
-    ".ckpt{font-size:16px;font-weight:700}" +
-    ".ckback{width:34px;height:34px;border:none;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:16px;cursor:pointer}" +
-    ".ckbody{flex:1;overflow:auto;padding:14px}" +
-    ".ckfrow{display:flex;gap:8px;align-items:center;margin-bottom:10px}" +
-    ".ckdate{flex:1;border:1px solid #E7D9BF;border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;outline:none;color:#2C231B}" +
-    ".ckref{width:44px;height:44px;flex:none;border:none;border-radius:12px;background:#E0952A;color:#431016;font-size:18px;cursor:pointer}" +
-    ".cktotal{font-size:22px;font-weight:800;color:#5E1B22;margin:6px 2px 0}" +
-    ".ckclear{border:none;background:none;color:#A9660F;font-size:13px;font-weight:700;cursor:pointer;padding:2px 0;margin-bottom:8px}" +
-    ".ckcap{display:flex;justify-content:space-between;align-items:baseline;margin:6px 2px 8px}" +
-    ".ckcap b{font-size:15px;color:#2C231B}" +
-    ".ckcap span{font-size:12px;color:#a08a6e}" +
-    ".ckcard{background:#fff;border:1px solid #ecdfc6;border-radius:14px;padding:12px 14px;margin-bottom:9px;box-shadow:0 1px 2px rgba(67,16,22,.04)}" +
-    ".ckcard p{margin:0;font-size:14px;color:#431016;line-height:1.45}" +
-    ".ckcard small{display:block;margin-top:5px;color:#a08a6e;font-size:12px}" +
-    ".ckempty{text-align:center;color:#a08a6e;padding:40px 0;font-size:14px}" +
-    ".ckfld{margin-bottom:10px}" +
     ".cklbl{font-size:13px;font-weight:700;color:#5E1B22;margin:14px 2px 6px}" +
-    "select.ckinp{-webkit-appearance:none;appearance:none;background:#fff}" +
-    ".ckinp[disabled]{background:#FBF4E8;color:#7C6A55}" +
+    /* in-page SMS section */
+    "#ck-sms{max-width:760px;margin:0 auto;padding:26px 18px 64px}" +
+    "#ck-sms .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}" +
+    "#ck-sms h1{font:700 1.7rem 'Fraunces',Georgia,serif;color:#5E1B22;margin:0}" +
+    "#ck-sms .num{font-size:.95rem;color:#7C6A55;font-weight:600}" +
+    "#ck-sms .filt{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}" +
+    "#ck-sms .dt{flex:1;min-width:150px;border:1px solid #E7D9BF;border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;color:#2C231B;outline:none}" +
+    "#ck-sms .rf{width:46px;height:46px;flex:none;border:none;border-radius:12px;background:#E0952A;color:#431016;font-size:18px;cursor:pointer}" +
+    "#ck-sms .total{font-size:1.5rem;font-weight:800;color:#5E1B22}" +
+    "#ck-sms .clr{border:none;background:none;color:#A9660F;font-size:.85rem;font-weight:700;cursor:pointer;padding:2px 0}" +
+    "#ck-sms .cap{display:flex;justify-content:space-between;align-items:baseline;margin:8px 2px 10px;color:#7C6A55;font-size:.85rem}" +
+    "#ck-sms .cap b{font-size:1rem;color:#2C231B}" +
+    "#ck-sms .card{background:#fff;border:1px solid #ecdfc6;border-radius:14px;padding:13px 15px;margin-bottom:10px;box-shadow:0 1px 3px rgba(67,16,22,.05)}" +
+    "#ck-sms .card p{margin:0;font-size:.95rem;color:#431016;line-height:1.5}" +
+    "#ck-sms .card small{display:block;margin-top:6px;color:#a08a6e;font-size:.78rem}" +
+    "#ck-sms .empty{text-align:center;color:#a08a6e;padding:46px 0}" +
+    "#ck-sms .back{border:1px solid #E7D9BF;background:#fff;color:#5E1B22;border-radius:999px;padding:8px 16px;font-weight:700;font-size:.85rem;cursor:pointer}" +
+    "#ck-sms .form{max-width:520px}" +
+    "#ck-sms .fld{margin-bottom:10px}" +
     "nav.main a.ck-navitem{color:#5E1B22 !important}";
 
-  function el(h) { var d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstChild; }
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function fmt(v) { var d = new Date(v); if (isNaN(d)) return ""; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  function elem(h) { var d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstChild; }
 
-  var fab, ov, sheet;
+  var fab, ov, sheet, marketMain, smsBox;
 
   function setPath(p) { try { if (location.pathname !== p) history.pushState({}, "", p); } catch (e) {} }
-  function open() { render(); ov.classList.add("on"); }
-  function close() { ov.classList.remove("on"); setPath("/"); try { sessionStorage.setItem("ck_skip", "1"); } catch (e) {} }
   function closeSiteMenu() { var h = document.querySelector("header"); if (h) h.classList.remove("nav-open"); }
+
+  function ensureSmsBox() {
+    if (smsBox) return;
+    marketMain = document.querySelector("main#home") || document.querySelector("main");
+    smsBox = document.createElement("main");
+    smsBox.id = "ck-sms";
+    smsBox.hidden = true;
+    smsBox.addEventListener("click", onSmsClick);
+    if (marketMain && marketMain.parentNode) marketMain.parentNode.insertBefore(smsBox, marketMain.nextSibling);
+    else document.body.appendChild(smsBox);
+  }
+
+  // ---- login bottom sheet ----
+  function openLogin() { renderLogin(); ov.classList.add("on"); }
+  function closeLogin() { ov.classList.remove("on"); try { sessionStorage.setItem("ck_skip", "1"); } catch (e) {} }
 
   async function refreshMe() {
     try {
@@ -76,40 +90,39 @@
     if (fab) fab.textContent = st.loggedIn ? "My SMS" : "Login";
     injectMenu();
   }
-
   async function sendOtp() {
-    if (st.busy) return; st.busy = true; st.err = ""; render();
+    if (st.busy) return; st.busy = true; st.err = ""; renderLogin();
     try {
       var r = await fetch(API.send, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mobile: st.mobile }) });
       var d = await r.json();
       if (!r.ok) st.err = d.error || "Could not send code."; else { st.dev = d.devCode || null; st.skip = !!d.skipVerification; st.step = "otp"; }
     } catch (e) { st.err = "Network error."; }
-    st.busy = false; render();
+    st.busy = false; renderLogin();
   }
   async function verify() {
-    if (st.busy) return; st.busy = true; st.err = ""; render();
+    if (st.busy) return; st.busy = true; st.err = ""; renderLogin();
     try {
       var r = await fetch(API.verify, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mobile: st.mobile, code: st.code }) });
       var d = await r.json();
-      if (!r.ok) { st.err = d.error || "Wrong code."; st.busy = false; render(); return; }
-      st.view = "messages"; await refreshMe(); st.busy = false; render();
-    } catch (e) { st.err = "Network error."; st.busy = false; render(); }
+      if (!r.ok) { st.err = d.error || "Wrong code."; st.busy = false; renderLogin(); return; }
+      st.busy = false; closeLogin(); await refreshMe(); showSms("messages");
+    } catch (e) { st.err = "Network error."; st.busy = false; renderLogin(); }
   }
   async function logout() {
     try { await fetch(API.logout, { method: "POST", credentials: "same-origin" }); } catch (e) {}
     st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; st.view = "messages";
-    try { close(); } catch (e) {} await refreshMe();
+    hideSms(); await refreshMe();
   }
 
   function renderLogin() {
     var h = '<div class="ckgrip"></div>';
-    h += '<div class="ckban"><button class="ckx" data-a="close">✕</button><div class="ckbanrow"><div class="ckbadge">🔔</div><div><div style="font-weight:700">Login Now</div><div style="font-size:12px;opacity:.92">Login karke apne hotel messages &amp; alerts turant paayein ✨</div></div></div></div>';
+    h += '<div class="ckban"><button class="ckx" data-a="closeLogin">✕</button><div class="ckbanrow"><div class="ckbadge">🔔</div><div><div style="font-weight:700">Login Now</div><div style="font-size:12px;opacity:.92">Login karke apne hotel messages &amp; alerts turant paayein ✨</div></div></div></div>';
     h += '<div class="ckh">Login with Mobile</div><div class="cksub">Hum aapke number par OTP bhejenge.</div>';
     if (st.step === "mobile") {
       h += '<div class="ckrow"><span class="ckpre">🇮🇳 +91</span><input class="ckinp" id="ckmob" inputmode="numeric" maxlength="10" placeholder="Enter mobile number" value="' + esc(st.mobile) + '"></div>';
       if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
       h += '<button class="ckbtn" data-a="send"' + (st.busy ? " disabled" : "") + ">" + (st.busy ? "Sending…" : "Send OTP →") + "</button>";
-      h += '<button class="ckskip" data-a="close">Skip for now</button>';
+      h += '<button class="ckskip" data-a="closeLogin">Skip for now</button>';
     } else {
       h += '<div class="cksub" style="margin-bottom:8px">Code sent to <b>+91 ' + esc(st.mobile) + '</b> · <a href="#" data-a="back" style="color:#A9660F">Change</a></div>';
       if (st.skip) h += '<div class="ckinfo">SMS abhi connect nahi hai — koi bhi code chalega.' + (st.dev ? " Aapka code: <b>" + esc(st.dev) + "</b>" : "") + "</div>";
@@ -121,32 +134,54 @@
     var mob = sheet.querySelector("#ckmob"); if (mob) mob.oninput = function () { st.mobile = this.value.replace(/\D/g, ""); };
     var cod = sheet.querySelector("#ckcode"); if (cod) { cod.oninput = function () { st.code = this.value.replace(/\D/g, ""); }; cod.focus(); }
   }
-
-  function renderPage() {
-    setPath("/sms");
-    var h = '<div class="ckph"><div style="flex:1"><div class="ckpt">+91 ' + esc(st.mobile) + '</div></div><button class="ckback" data-a="close">✕</button></div>';
-    h += '<div class="ckbody">';
-    h += '<div class="ckfrow"><input class="ckdate" type="date" id="ckdate" value="' + esc(st.date) + '"><button class="ckref" data-a="refresh" title="Refresh">⟳</button></div>';
-    h += '<div class="cktotal">Total SMS - ' + st.total + "</div>";
-    if (st.date) h += '<button class="ckclear" data-a="clear">Clear Filters</button>';
-    h += '<div class="ckcap"><b>' + (st.date ? "Filtered" : "All SMS") + "</b><span>" + st.messages.length + " messages</span></div>";
-    if (!st.messages.length) h += '<div class="ckempty">Koi SMS nahi mila.' + (st.date ? " (is date par)" : "") + "</div>";
-    st.messages.forEach(function (m) { h += '<div class="ckcard"><p>' + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>"; });
-    h += "</div>";
-    sheet.innerHTML = h;
-    var dt = sheet.querySelector("#ckdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(render); };
+  function onSheetClick(e) {
+    var t = e.target.closest("[data-a]"); if (!t) return; e.preventDefault();
+    var a = t.getAttribute("data-a");
+    if (a === "closeLogin") closeLogin();
+    else if (a === "send") { if ((st.mobile || "").length >= 8) sendOtp(); else { st.err = "Sahi mobile number daalein."; renderLogin(); } }
+    else if (a === "verify") verify();
+    else if (a === "back") { st.step = "mobile"; st.code = ""; st.err = ""; renderLogin(); }
   }
 
-  function renderEdit() {
-    var p = st.profile || {};
-    var titles = ["", "Mr.", "Mrs.", "Ms.", "Dr."], mm = [], dd = [], yy = [];
+  // ---- in-page SMS section ----
+  function showSms(view) {
+    ensureSmsBox();
+    st.view = view || "messages";
+    if (marketMain) marketMain.hidden = true;
+    smsBox.hidden = false;
+    setPath("/sms");
+    try { window.scrollTo(0, 0); } catch (e) {}
+    renderSms();
+  }
+  function hideSms() {
+    if (marketMain) marketMain.hidden = false;
+    if (smsBox) smsBox.hidden = true;
+    setPath("/");
+  }
+  function renderSms() {
+    if (!smsBox) return;
+    smsBox.innerHTML = st.view === "edit" ? editHtml() : pageHtml();
+    var dt = smsBox.querySelector("#cksmsdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(renderSms); };
+  }
+  function pageHtml() {
+    var h = '<div class="top"><div><h1>My SMS Notifications</h1><div class="num">+91 ' + esc(st.mobile) + (st.name ? " · " + esc(st.name) : "") + '</div></div><button class="back" data-a="home">← Home</button></div>';
+    h += '<div class="filt"><input class="dt" type="date" id="cksmsdate" value="' + esc(st.date) + '"><button class="rf" data-a="refresh" title="Refresh">⟳</button></div>';
+    h += '<div class="total">Total SMS - ' + st.total + "</div>";
+    if (st.date) h += '<button class="clr" data-a="clear">Clear Filters</button>';
+    h += '<div class="cap"><b>' + (st.date ? "Filtered" : "All SMS") + "</b><span>" + st.messages.length + " messages</span></div>";
+    if (!st.messages.length) h += '<div class="empty">Koi SMS nahi mila.' + (st.date ? " (is date par)" : "") + "</div>";
+    st.messages.forEach(function (m) { h += '<div class="card"><p>' + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>"; });
+    return h;
+  }
+  function editHtml() {
+    var p = st.profile || {}, titles = ["", "Mr.", "Mrs.", "Ms.", "Dr."], mm = [], dd = [], yy = [];
     for (var i = 1; i <= 12; i++) mm.push(("0" + i).slice(-2));
     for (var j = 1; j <= 31; j++) dd.push(("0" + j).slice(-2));
     for (var y = new Date().getFullYear(); y >= 1940; y--) yy.push("" + y);
     var dob = (p.dob || "").split("-"), cy = dob[0] || "", cm = dob[1] || "", cd = dob[2] || "";
     function opts(arr, cur, ph) { var s = '<option value="">' + ph + "</option>"; arr.forEach(function (v) { if (v) s += '<option value="' + v + '"' + (v === cur ? " selected" : "") + ">" + v + "</option>"; }); return s; }
-    var h = '<div class="ckph"><button class="ckback" data-a="tomsg">←</button><div style="flex:1"><div class="ckpt">Edit Profile</div></div></div><div class="ckbody">';
-    h += '<div class="ckfld"><select class="ckinp" id="pt">';
+    var h = '<div class="top"><h1>Edit Profile</h1><button class="back" data-a="tomsg">← Back</button></div><div class="form">';
+    h += '<div class="fld"><select class="ckinp" id="pt">';
     titles.forEach(function (t) { h += '<option value="' + t + '"' + (t === (p.title || "") ? " selected" : "") + ">" + (t || "Title") + "</option>"; });
     h += "</select></div>";
     h += '<div class="ckrow"><input class="ckinp" id="pf" placeholder="First Name" value="' + esc(p.firstName || "") + '"><input class="ckinp" id="pl" placeholder="Last Name" value="' + esc(p.lastName || "") + '"></div>';
@@ -155,57 +190,42 @@
     h += '<div class="cklbl">Date of Birth</div>';
     h += '<div class="ckrow"><select class="ckinp" id="pm">' + opts(mm, cm, "MM") + '</select><select class="ckinp" id="pd">' + opts(dd, cd, "DD") + '</select><select class="ckinp" id="py">' + opts(yy, cy, "YYYY") + "</select></div>";
     if (st.err) h += '<div class="ckerr">' + esc(st.err) + "</div>";
-    h += '<button class="ckbtn" style="background:#E0952A;color:#431016;margin-top:16px" data-a="savep"' + (st.busy ? " disabled" : "") + ">" + (st.busy ? "Saving…" : "Save Profile") + "</button>";
+    h += '<button class="ckbtn" style="background:#E0952A;color:#431016;margin-top:16px" data-a="savep">Save Profile</button>';
     h += '<button class="ckbtn" style="background:#fff;color:#b3261e;border:1px solid #e6a9a9;margin-top:10px" data-a="logout">Logout</button></div>';
-    sheet.innerHTML = h;
+    return h;
   }
-
-  function render() {
-    if (!st.loggedIn) { ov.classList.remove("full"); renderLogin(); }
-    else if (st.view === "edit") { ov.classList.add("full"); renderEdit(); }
-    else { ov.classList.add("full"); renderPage(); }
-  }
-
-  function onClick(e) {
-    var t = e.target.closest("[data-a]"); if (!t) return;
-    e.preventDefault();
+  function onSmsClick(e) {
+    var t = e.target.closest("[data-a]"); if (!t) return; e.preventDefault();
     var a = t.getAttribute("data-a");
-    if (a === "close") close();
-    else if (a === "send") { if ((st.mobile || "").length >= 8) sendOtp(); else { st.err = "Sahi mobile number daalein."; render(); } }
-    else if (a === "verify") verify();
-    else if (a === "back") { st.step = "mobile"; st.code = ""; st.err = ""; render(); }
+    if (a === "home") hideSms();
+    else if (a === "refresh") refreshMe().then(renderSms);
+    else if (a === "clear") { st.date = ""; refreshMe().then(renderSms); }
+    else if (a === "tomsg") { st.view = "messages"; renderSms(); }
     else if (a === "logout") logout();
-    else if (a === "refresh") refreshMe().then(render);
-    else if (a === "clear") { st.date = ""; refreshMe().then(render); }
-    else if (a === "tomsg") { st.view = "messages"; render(); }
-    else if (a === "editprofile") { st.view = "edit"; st.err = ""; render(); }
     else if (a === "savep") saveProfileForm();
   }
-
   async function saveProfileForm() {
-    if (st.busy) return;
-    var g = function (id) { var e = sheet.querySelector("#" + id); return e ? e.value : ""; };
+    var g = function (id) { var e = smsBox.querySelector("#" + id); return e ? e.value : ""; };
     var mm = g("pm"), dd = g("pd"), yy = g("py"), dob = (yy && mm && dd) ? yy + "-" + mm + "-" + dd : "";
     var body = { title: g("pt"), firstName: g("pf"), lastName: g("pl"), email: g("pe"), dob: dob };
-    st.busy = true; st.err = ""; render();
+    st.err = "";
     try {
       var r = await fetch("/api/user/profile", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify(body) });
       var d = await r.json();
-      if (!r.ok) { st.err = d.error || "Save failed."; st.busy = false; render(); return; }
-      await refreshMe(); st.busy = false; st.view = "messages"; render();
-    } catch (e) { st.err = "Network error."; st.busy = false; render(); }
+      if (!r.ok) { st.err = d.error || "Save failed."; renderSms(); return; }
+      await refreshMe(); st.view = "messages"; renderSms();
+    } catch (e) { st.err = "Network error."; renderSms(); }
   }
 
-  // Navigation from the SITE's own menu (injected items).
+  // ---- site menu integration ----
   function ckNav(a) {
     closeSiteMenu();
-    if (a === "dologin") { st.step = "mobile"; open(); }
-    else if (a === "sms") { st.view = "messages"; open(); }
-    else if (a === "editprofile") { st.view = "edit"; open(); }
+    if (a === "dologin") { if (st.loggedIn) showSms("messages"); else { st.step = "mobile"; openLogin(); } }
+    else if (a === "sms") { if (st.loggedIn) showSms("messages"); else { st.step = "mobile"; openLogin(); } }
+    else if (a === "editprofile") { if (st.loggedIn) showSms("edit"); else openLogin(); }
     else if (a === "logout") logout();
     else if (a === "rate") window.open(RATE_URL, "_blank");
   }
-
   function injectMenu() {
     var ul = document.querySelector("nav.main ul");
     if (!ul) return;
@@ -221,22 +241,26 @@
     });
   }
 
+  function fabClick() { if (st.loggedIn) showSms("messages"); else { st.step = "mobile"; openLogin(); } }
+
   function boot() {
     var s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
-    fab = el('<button id="ckfab">Login</button>');
-    ov = el('<div id="ckov"><div id="cksheet"></div></div>');
+    fab = elem('<button id="ckfab">Login</button>');
+    ov = elem('<div id="ckov"><div id="cksheet"></div></div>');
     sheet = ov.querySelector("#cksheet");
     document.body.appendChild(fab); document.body.appendChild(ov);
-    fab.onclick = open;
-    ov.onclick = function (e) { if (e.target === ov && !st.loggedIn) close(); };
-    sheet.addEventListener("click", onClick);
+    ensureSmsBox();
+    fab.onclick = fabClick;
+    ov.onclick = function (e) { if (e.target === ov) closeLogin(); };
+    sheet.addEventListener("click", onSheetClick);
     window.addEventListener("popstate", function () {
-      if (location.pathname === "/sms") { if (!ov.classList.contains("on")) open(); } else { ov.classList.remove("on"); }
+      if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); }
+      else hideSms();
     });
     refreshMe().then(function () {
       var skipped = false; try { skipped = sessionStorage.getItem("ck_skip") === "1"; } catch (e) {}
-      if (location.pathname === "/sms") open();
-      else if (!st.loggedIn && !skipped) setTimeout(open, 700);
+      if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); else openLogin(); }
+      else if (!st.loggedIn && !skipped) setTimeout(openLogin, 700);
     });
   }
 
