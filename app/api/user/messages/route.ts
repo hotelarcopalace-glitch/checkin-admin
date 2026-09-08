@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const dateRaw = new URL(req.url).searchParams.get("date") || "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(dateRaw) ? dateRaw : "";
 
-  let messages: { message: string; status: string; created_at: string }[] = [];
+  let messages: { id: string; message: string; status: string; created_at: string }[] = [];
   let name = "";
   let total = 0;
   if (hasDatabase()) {
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
         : `recipient = $1`;
       const params = date ? [session.mobile, date] : [session.mobile];
       messages = await query(
-        `SELECT message, status, created_at FROM sms_messages
+        `SELECT id::text, message, status, created_at FROM sms_messages
          WHERE ${where} ORDER BY created_at DESC LIMIT 300`,
         params
       );

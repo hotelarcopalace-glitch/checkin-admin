@@ -88,6 +88,10 @@ export async function pushToMobile(
   }
 
   const url = `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/messages:send`;
+  const site = process.env.SITE_URL ?? "https://checkin.co.in";
+  // Tapping the notification lands on the on-site SMS page with that SMS highlighted.
+  const deepPath = data.smsId ? `/sms?hl=${encodeURIComponent(data.smsId)}` : "/sms";
+  const deepLink = `${site}${deepPath}`;
   let sent = 0;
   let failed = 0;
 
@@ -100,9 +104,9 @@ export async function pushToMobile(
           message: {
             token: device.token,
             notification: { title, body },
-            data,
+            data: { ...data, url: deepPath },
             webpush: {
-              fcmOptions: { link: `${process.env.SITE_URL ?? "https://checkin.co.in"}/user` },
+              fcmOptions: { link: deepLink },
             },
           },
         }),

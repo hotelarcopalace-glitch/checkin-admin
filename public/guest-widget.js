@@ -6,7 +6,7 @@
   if (window.__ckGuest) return;
   window.__ckGuest = true;
 
-  var API = { me: "/api/user/messages", send: "/api/user/otp/send", verify: "/api/user/otp/verify", logout: "/api/user/logout" };
+  var API = { me: "/api/user/messages", send: "/api/user/otp/send", verify: "/api/user/otp/verify", logout: "/api/user/logout", pushCfg: "/api/push/config", device: "/api/user/device" };
   var st = { loggedIn: false, mobile: "", name: "", total: 0, messages: [], date: "", step: "mobile", code: "", dev: null, skip: false, busy: false, err: "", view: "messages", profile: {} };
   var RATE_URL = "https://www.google.com/search?q=Hotel+Arco+Palace+Jaipur+review";
 
@@ -123,10 +123,13 @@
     if (prev && top.created_at > prev) notifyNewSms(top);
   }
   function notifyNewSms(m) {
+    // Foreground fallback: fires only while a tab is open. Real background push
+    // (Chrome closed) is delivered by the FCM service worker, registered in askPush.
+    if (st.fcmOn) return; // avoid a double notification when FCM is active
     if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
     try {
-      var n = new Notification("New SMS · CHECKIN", { body: (m.message || "").slice(0, 120), tag: "ck-sms-" + m.created_at });
-      n.onclick = function () { try { window.focus(); } catch (e) {} openSmsHighlight(m.created_at); n.close(); };
+      var n = new Notification("New SMS · CHECKIN", { body: (m.message || "").slice(0, 120), tag: "ck-sms-" + m.id });
+      n.onclick = function () { try { window.focus(); } catch (e) {} openSmsHighlight(m.id); n.close(); };
     } catch (e) {}
   }
   function openSmsHighlight(ts) {
@@ -156,9 +159,10 @@
     } catch (e) { st.err = "Network error."; st.busy = false; renderLogin(); }
   }
   async function logout() {
+    if (st.fcmToken) { try { await fetch(API.device, { method: "DELETE", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ token: st.fcmToken }) }); } catch (e) {} }
     try { await fetch(API.logout, { method: "POST", credentials: "same-origin" }); } catch (e) {}
     clearInterval(st.pollTimer);
-    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; st.view = "messages"; st.lastTop = undefined;
+    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; st.view = "messages"; st.lastTop = undefined; st.fcmOn = false; st.fcmToken = null;
     hideSms(); await refreshMe();
   }
 
@@ -233,8 +237,8 @@
     h += '<div class="cap"><b>' + (st.date ? "Filtered" : "All SMS") + "</b><span>" + st.messages.length + " messages</span></div>";
     if (!st.messages.length) h += '<div class="empty">Koi SMS nahi mila.' + (st.date ? " (is date par)" : "") + "</div>";
     st.messages.forEach(function (m) {
-      var isHl = st.hl && m.created_at === st.hl;
-      h += '<div class="card' + (isHl ? " hl" : "") + '" data-ts="' + esc(m.created_at) + '">' + (isHl ? '<span class="nb">New</span>' : "") + "<p>" + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>";
+      var isHl = st.hl && String(m.id) === String(st.hl);
+      h += '<div class="card' + (isHl ? " hl" : "") + '" data-id="' + esc(String(m.id || "")) + '">' + (isHl ? '<span class="nb">New</span>' : "") + "<p>" + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>";
     });
     return h;
   }
@@ -284,9 +288,62 @@
   }
 
   // ---- site menu integration ----
-  function askPush() {
+  // Load a script once, resolving when ready.
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      if (document.querySelector('script[src="' + src + '"]')) return res();
+      var s = document.createElement("script"); s.src = src; s.async = true;
+      s.onload = function () { res(); }; s.onerror = function () { rej(new Error("load failed: " + src)); };
+      document.head.appendChild(s);
+    });
+  }
+  var FB = "https://www.gstatic.com/firebasejs/10.14.1/";
+  // Registers this browser for real background push via FCM so notifications
+  // arrive even when Chrome is closed. Falls back to in-page notifications when
+  // Firebase isn't configured or the browser can't do push.
+  async function askPush() {
     if (typeof Notification === "undefined") { alert("Is browser me notifications support nahi."); return; }
-    Notification.requestPermission().then(function (p) { st.push = p === "granted"; injectMenu(); });
+    var cfg = null;
+    try { cfg = await (await fetch(API.pushCfg, { credentials: "same-origin" })).json(); } catch (e) {}
+
+    var perm = Notification.permission;
+    if (perm !== "granted") { try { perm = await Notification.requestPermission(); } catch (e) {} }
+    if (perm !== "granted") {
+      st.push = false; injectMenu();
+      if (perm === "denied") alert("Notifications block hain. Address bar ke lock icon → Permissions → Notifications → Allow karke reload karein.");
+      return;
+    }
+    st.push = true; injectMenu();
+
+    // Real background push needs Firebase config + service worker support.
+    if (!cfg || !cfg.configured || !("serviceWorker" in navigator)) { startPolling(); return; }
+    try {
+      var params = new URLSearchParams({ apiKey: cfg.apiKey, authDomain: cfg.authDomain, projectId: cfg.projectId, messagingSenderId: cfg.messagingSenderId, appId: cfg.appId });
+      var reg = await navigator.serviceWorker.register("/firebase-messaging-sw.js?" + params.toString(), { scope: "/" });
+      await loadScript(FB + "firebase-app-compat.js");
+      await loadScript(FB + "firebase-messaging-compat.js");
+      var fb = window.firebase;
+      if (!fb.apps.length) fb.initializeApp({ apiKey: cfg.apiKey, authDomain: cfg.authDomain, projectId: cfg.projectId, messagingSenderId: cfg.messagingSenderId, appId: cfg.appId });
+      var messaging = fb.messaging();
+      var token = await messaging.getToken({ vapidKey: cfg.vapidKey, serviceWorkerRegistration: reg });
+      if (token) {
+        await fetch(API.device, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ token: token }) });
+        st.fcmOn = true; st.fcmToken = token;
+        // While a tab is open FCM delivers here instead of the SW.
+        messaging.onMessage(function (payload) {
+          var d = (payload && payload.data) || {};
+          var note = (payload && payload.notification) || {};
+          if (document.hidden && typeof Notification !== "undefined" && Notification.permission === "granted") {
+            try {
+              var n = new Notification(note.title || "New SMS · CHECKIN", { body: note.body || "", tag: "ck-sms-" + (d.smsId || "") });
+              n.onclick = function () { try { window.focus(); } catch (e) {} if (d.smsId) openSmsHighlight(d.smsId); n.close(); };
+            } catch (e) {}
+          } else if (d.smsId) {
+            refreshMe().then(function () { openSmsHighlight(d.smsId); });
+          }
+        });
+      }
+    } catch (e) { startPolling(); } // FCM failed — keep the foreground fallback
   }
   function ckNav(a) {
     if (a === "push") { askPush(); return; }
@@ -367,7 +424,11 @@
       if (hlq && st.loggedIn) st.hl = hlq;
       if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); else openLogin(); }
       else if (!st.loggedIn && !skipped) setTimeout(openLogin, 700);
-      if (st.loggedIn) startPolling();
+      if (st.loggedIn) {
+        startPolling();
+        // Already-allowed users: silently refresh the FCM token in the DB.
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") askPush();
+      }
     });
   }
 

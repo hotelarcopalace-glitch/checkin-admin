@@ -18,24 +18,30 @@ if (config.projectId) {
   const messaging = firebase.messaging();
 
   messaging.onBackgroundMessage((payload) => {
-    const title = (payload.notification && payload.notification.title) || "New message";
+    const d = payload.data || {};
+    const title = (payload.notification && payload.notification.title) || "New SMS";
     const body = (payload.notification && payload.notification.body) || "";
+    const url = d.url || (d.smsId ? "/sms?hl=" + encodeURIComponent(d.smsId) : "/sms");
     self.registration.showNotification(title, {
       body,
       icon: "/images/logo2.jpg",
       badge: "/images/logo2.jpg",
-      data: { url: "/user" },
+      data: { url },
     });
   });
 }
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/user";
+  const url = (event.notification.data && event.notification.data.url) || "/sms";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      // Focus an already-open site tab and steer it to the SMS page, else open one.
       for (const client of list) {
-        if (client.url.includes(url) && "focus" in client) return client.focus();
+        if (client.url.indexOf(self.location.origin) === 0 && "focus" in client) {
+          if ("navigate" in client) { try { client.navigate(url); } catch (e) {} }
+          return client.focus();
+        }
       }
       return clients.openWindow(url);
     })
