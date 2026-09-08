@@ -10,34 +10,26 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (!session) redirect("/mng-x7k9/login");
 
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 border-r border-slate-200 bg-white p-4 md:block">
-        <Link href="/mng-x7k9" className="mb-6 flex items-center gap-2 px-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
-            C
-          </span>
-          <span className="font-semibold tracking-tight">Checkin</span>
-        </Link>
-        <nav className="space-y-1">
-          <NavLink href="/mng-x7k9" label="Dashboard" icon="▦" />
-          <NavLink href="/mng-x7k9/sms" label="SMS List" icon="✉" />
-          <NavLink href="/mng-x7k9/users" label="Users" icon="◫" />
-          <NavLink href="/mng-x7k9/account" label="Change password" icon="⚿" />
-        </nav>
-      </aside>
+    <div className="flex min-h-screen flex-col">
+      {/* Top bar: logo + horizontal nav + signed-in / log out */}
+      <header className="border-b border-slate-200 bg-white">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-2.5">
+          <Link href="/mng-x7k9" className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
+              C
+            </span>
+            <span className="font-semibold tracking-tight">Checkin</span>
+          </Link>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 py-3">
-          <div className="flex items-center gap-3 md:hidden">
-            <Link href="/mng-x7k9" className="text-sm font-semibold">
-              Checkin
-            </Link>
-            <Link href="/mng-x7k9/sms" className="text-sm text-slate-500">
-              SMS List
-            </Link>
-          </div>
+          <nav className="flex items-center gap-1 overflow-x-auto">
+            <NavLink href="/mng-x7k9" label="Dashboard" icon="▦" />
+            <NavLink href="/mng-x7k9/sms" label="SMS List" icon="✉" />
+            <NavLink href="/mng-x7k9/users" label="Users" icon="◫" />
+            <NavLink href="/mng-x7k9/account" label="Change password" icon="⚿" />
+          </nav>
+
           <div className="ml-auto flex items-center gap-3">
-            <span className="text-sm text-slate-500">
+            <span className="hidden text-sm text-slate-500 sm:inline">
               Signed in as <strong className="text-slate-700">{session.username}</strong>
             </span>
             <form action="/api/auth/logout" method="post">
@@ -46,10 +38,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </button>
             </form>
           </div>
-        </header>
+        </div>
+      </header>
 
-        <main className="flex-1 p-5">{children}</main>
-      </div>
+      {/* Full-width content */}
+      <main className="flex-1 p-5">{children}</main>
     </div>
   );
 }
