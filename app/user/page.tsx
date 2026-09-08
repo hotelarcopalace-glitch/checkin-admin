@@ -21,16 +21,50 @@ export default async function UserHome() {
   const store = await cookies();
   const session = await verifyUserToken(store.get(USER_COOKIE)?.value);
 
-  // Not logged in -> show the page shell with the mobile-number bottom sheet.
+  // Not logged in -> a branded landing with the login bottom sheet on top.
   if (!session) {
     return (
-      <main className="min-h-screen bg-slate-50 px-4 py-10">
-        <div className="mx-auto w-full max-w-lg text-center">
-          <h1 className="text-lg font-semibold tracking-tight">Checkin — My messages</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Apne hotel messages/alerts mobile number se dekhein.
-          </p>
+      <main className="min-h-screen bg-slate-50">
+        {/* hero */}
+        <div className="bg-gradient-to-b from-indigo-600 to-violet-600 px-5 pb-16 pt-10 text-white">
+          <div className="mx-auto w-full max-w-lg">
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-lg font-bold">
+                C
+              </span>
+              <span className="text-lg font-semibold tracking-tight">Checkin</span>
+            </div>
+            <h1 className="mt-6 text-2xl font-bold leading-snug">
+              Apne hotel ke messages, receipts &amp; alerts — ek jagah, apne mobile par.
+            </h1>
+            <p className="mt-2 text-sm text-white/80">
+              Mobile number se login karein aur apne saare messages turant dekhein.
+            </p>
+          </div>
         </div>
+
+        {/* feature cards (peek behind the sheet) */}
+        <div className="mx-auto -mt-10 w-full max-w-lg space-y-3 px-5 pb-40">
+          {[
+            { i: "✉", t: "Messages", d: "Hotel ke saare SMS ek jagah." },
+            { i: "🧾", t: "Receipts & Bills", d: "Entry/exit receipts, KOT, bills." },
+            { i: "🔔", t: "Instant Alerts", d: "Naya message aate hi notification." },
+          ].map((f) => (
+            <div
+              key={f.t}
+              className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-lg">
+                {f.i}
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{f.t}</p>
+                <p className="text-sm text-slate-500">{f.d}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
         <GuestLoginSheet />
       </main>
     );
