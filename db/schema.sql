@@ -92,3 +92,24 @@ CREATE TABLE IF NOT EXISTS admin_users (
 -- contains that tag (e.g. "@Arco Team"), and nothing else in the panel.
 -- A user with a NULL/empty tag is a full super-admin.
 ALTER TABLE admin_users ADD COLUMN IF NOT EXISTS sms_tag TEXT;
+
+
+-- ---------------------------------------------------------------------------
+-- Magic login links. checkin.exe calls POST /api/magic/create to mint a short
+-- login URL (checkin.co.in/l/<token>) which it then puts inside the OTP SMS it
+-- sends itself. Opening the link logs the guest in (sets the user cookie) and
+-- lands them on /sms. The website only MINTS links — it never sends SMS.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS magic_links (
+  token      TEXT        PRIMARY KEY,
+  mobile     TEXT        NOT NULL,
+  hotel_tag  TEXT,
+  name       TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS magic_links_mobile_idx ON magic_links (mobile);
+CREATE INDEX IF NOT EXISTS magic_links_expires_idx ON magic_links (expires_at);
