@@ -443,12 +443,25 @@
       if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); }
       else hideSms();
     });
+    // On a /sms deep-link, hide the marketing home immediately (before the login
+    // check finishes) so the guest never sees a flash of the home page first.
+    var onSmsPath = location.pathname === "/sms";
+    if (onSmsPath) {
+      if (marketMain) marketMain.hidden = true;
+      smsBox.hidden = false;
+      smsBox.innerHTML = '<div class="empty">Loading…</div>';
+      document.body.classList.add("ck-sms-mode");
+      if (bar) bar.classList.add("on");
+      try { window.scrollTo(0, 0); } catch (e) {}
+    }
+    // JS now controls home visibility via marketMain.hidden — drop the first-paint guard.
+    try { document.documentElement.classList.remove("ck-sms-boot"); } catch (e) {}
     refreshMe().then(function () {
       var skipped = false; try { skipped = sessionStorage.getItem("ck_skip") === "1"; } catch (e) {}
       // Deep-link from a notification: /sms?hl=<created_at> highlights that SMS.
       var hlq = ""; try { hlq = new URL(location.href).searchParams.get("hl") || ""; } catch (e) {}
       if (hlq && st.loggedIn) st.hl = hlq;
-      if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); else openLogin(); }
+      if (onSmsPath) { if (st.loggedIn) showSms("messages"); else { hideSms(); openLogin(); } }
       else if (!st.loggedIn && !skipped) setTimeout(openLogin, 700);
       if (st.loggedIn) {
         startPolling();
