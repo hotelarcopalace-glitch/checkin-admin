@@ -347,12 +347,30 @@
   }
   function ckNav(a) {
     if (a === "push") { askPush(); return; }
+    if (a === "install") { doInstall(); return; }
     closeSiteMenu();
     if (a === "dologin") { if (st.loggedIn) showSms("messages"); else { st.step = "mobile"; openLogin(); } }
     else if (a === "sms") { if (st.loggedIn) showSms("messages"); else { st.step = "mobile"; openLogin(); } }
     else if (a === "editprofile") { if (st.loggedIn) showSms("edit"); else openLogin(); }
     else if (a === "logout") logout();
     else if (a === "rate") window.open(RATE_URL, "_blank");
+  }
+  function isIOS() { return /iphone|ipad|ipod/i.test(navigator.userAgent || ""); }
+  function isStandalone() {
+    try { return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch (e) { return false; }
+  }
+  // Add-to-Home-Screen: Android/Chrome uses the captured beforeinstallprompt;
+  // iOS Safari has no such API, so we show the manual Share → Add steps.
+  async function doInstall() {
+    if (st.installPrompt) {
+      closeSiteMenu();
+      try { st.installPrompt.prompt(); await st.installPrompt.userChoice; } catch (e) {}
+      st.installPrompt = null; injectMenu();
+    } else if (isIOS()) {
+      alert("iPhone par install karne ke liye: Safari me neeche Share button (⬆️) dabayein → 'Add to Home Screen' chunein.");
+    } else {
+      alert("Is browser ke menu (⋮) me 'Install app' ya 'Add to Home screen' option se install karein.");
+    }
   }
   function injectMenu() {
     var nav = document.querySelector("nav.main");
@@ -377,6 +395,11 @@
     var items = st.loggedIn
       ? [{ t: "My SMS Notifications", a: "sms", sw: "on" }, { t: "Push Notification", a: "push", sw: st.push ? "on" : "" }, { t: "Rate on Google", a: "rate" }, { t: "Logout", a: "logout" }]
       : [{ t: "My SMS / Login", a: "dologin" }];
+    // Add-to-Home / Install — only when the app can be installed and isn't already.
+    if (!isStandalone() && (st.installPrompt || isIOS())) {
+      var pos = st.loggedIn ? items.length - 1 : items.length; // before Logout when present
+      items.splice(pos, 0, { t: "📲 Add to Home Screen", a: "install" });
+    }
     items.forEach(function (it) {
       var li = document.createElement("li"); li.className = "ck-li";
       var a = document.createElement("a"); a.href = "#"; a.className = "ck-navitem";
@@ -390,6 +413,9 @@
 
   function boot() {
     var s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
+    // Capture the install prompt so the drawer can offer "Add to Home Screen".
+    window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); st.installPrompt = e; injectMenu(); });
+    window.addEventListener("appinstalled", function () { st.installPrompt = null; injectMenu(); });
     ov = elem('<div id="ckov"><div id="cksheet"></div></div>');
     sheet = ov.querySelector("#cksheet");
     document.body.appendChild(ov);
