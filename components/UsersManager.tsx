@@ -30,6 +30,7 @@ export default function UsersManager({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [tag, setTag] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -47,7 +48,7 @@ export default function UsersManager({
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, tag }),
+        body: JSON.stringify({ username, password, tag: isAdmin ? "" : tag, admin: isAdmin }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -55,6 +56,7 @@ export default function UsersManager({
         setUsername("");
         setPassword("");
         setTag("");
+        setIsAdmin(false);
         router.refresh();
       } else {
         setMsg({ ok: false, text: data.error || "Failed." });
@@ -118,9 +120,9 @@ export default function UsersManager({
         <p className="text-sm font-medium text-slate-700">Add a new user</p>
         <p className="mt-1 text-sm text-slate-500">
           <strong>Hotel login:</strong> SMS tag me hotel ka tag daalo jaise{" "}
-          <code>@Arco Team</code> — bilkul waisa hi jaisा SMS ke text ke last me aata hai. Wo user
-          sirf wahi SMS dekhega jinke text me ye tag hai. <strong>Tag khali</strong> = full admin
-          (sab dikhega).
+          <code>@Arco Team</code> (bilkul waisa jaisा SMS text ke last me aata hai) — wo user sirf
+          wahi SMS dekhega. <strong>Admin</strong> checkbox on karo to full admin (sab dikhega, tag
+          nahi chahiye).
         </p>
         <form onSubmit={createUser} className="mt-3 flex flex-wrap items-end gap-3">
           <div className="min-w-[150px] flex-1">
@@ -145,16 +147,26 @@ export default function UsersManager({
           </div>
           <div className="min-w-[170px] flex-1">
             <label className="mb-1 block text-xs font-medium text-slate-500">
-              SMS tag (hotel) — optional
+              SMS tag (hotel)
             </label>
             <input
-              className={input}
-              value={tag}
+              className={`${input} ${isAdmin ? "bg-slate-100 text-slate-400" : ""}`}
+              value={isAdmin ? "" : tag}
               onChange={(e) => setTag(e.target.value)}
               placeholder="@Arco Team"
               autoComplete="off"
+              disabled={isAdmin}
             />
           </div>
+          <label className="flex items-center gap-2 pb-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={isAdmin}
+              onChange={(e) => setIsAdmin(e.target.checked)}
+            />
+            Admin
+          </label>
           <button
             type="submit"
             disabled={busy}

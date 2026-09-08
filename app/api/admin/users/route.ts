@@ -6,6 +6,7 @@ import {
   adminUserExists,
   createAdminUser,
   listAdminUsers,
+  tagError,
   validPassword,
   validUsername,
 } from "@/lib/admin-users";
@@ -42,11 +43,13 @@ export async function POST(req: Request) {
   let username = "";
   let password = "";
   let tag = "";
+  let admin = false;
   try {
     const body = await req.json();
     username = String(body.username ?? "").trim();
     password = String(body.password ?? "");
     tag = String(body.tag ?? "").trim();
+    admin = body.admin === true || body.admin === "true" || body.admin === "on";
   } catch {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
@@ -58,6 +61,20 @@ export async function POST(req: Request) {
     );
   if (!validPassword(password))
     return NextResponse.json({ error: "Password must be at least 6 characters." }, { status: 400 });
+
+  // Admin checkbox ON => full admin (no tag). Otherwise a hotel login that
+  // needs a valid tag.
+  if (admin) {
+    tag = "";
+  } else {
+    const te = tagError(tag);
+    if (te) return NextResponse.json({ error: te }, { status: 400 });
+    if (!tag)
+      return NextResponse.json(
+        { error: "Hotel user ke liye SMS tag daalein (jaise @Arco Team), ya Admin check karein." },
+        { status: 400 }
+      );
+  }
 
   const envUser = process.env.ADMIN_USERNAME ?? "";
   if (username.toLowerCase() === envUser.toLowerCase())

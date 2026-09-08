@@ -6,6 +6,7 @@ import {
   deleteAdminUser,
   setAdminUserPassword,
   setAdminUserTag,
+  tagError,
   validPassword,
 } from "@/lib/admin-users";
 
@@ -35,8 +36,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  // Set / clear the hotel SMS tag.
+  // Set / clear the hotel SMS tag. Empty clears it (-> full admin). A non-empty
+  // tag must be valid.
   if (Object.prototype.hasOwnProperty.call(body, "tag")) {
+    const te = tagError(body.tag);
+    if (te) return NextResponse.json({ error: te }, { status: 400 });
     try {
       const done = await setAdminUserTag(id, String(body.tag ?? ""));
       if (!done) return NextResponse.json({ error: "User not found." }, { status: 404 });
