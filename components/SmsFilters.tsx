@@ -29,7 +29,7 @@ export default function SmsFilters() {
     if (to) next.set("to", to);
     const size = params.get("size");
     if (size) next.set("size", size);
-    router.push(`/admin/sms${next.toString() ? `?${next}` : ""}`);
+    router.push(`/mng-x7k9/sms${next.toString() ? `?${next}` : ""}`);
   }
 
   return (
@@ -54,7 +54,7 @@ export default function SmsFilters() {
         <button type="submit" className="btn btn-primary">
           Filter
         </button>
-        <button type="button" className="btn btn-ghost" onClick={() => router.push("/admin/sms")}>
+        <button type="button" className="btn btn-ghost" onClick={() => router.push("/mng-x7k9/sms")}>
           Clear
         </button>
       </div>

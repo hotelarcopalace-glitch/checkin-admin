@@ -11,6 +11,16 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [{ source: "/", destination: "/index.html" }];
   },
+  // The admin panel moved to a secret base path. Old guessable URLs go home so
+  // nothing (not even a 404) hints that an admin area exists. /api/admin/* is
+  // untouched (different prefix).
+  async redirects() {
+    return [
+      { source: "/admin", destination: "/", permanent: false },
+      { source: "/admin/:path*", destination: "/", permanent: false },
+      { source: "/login", destination: "/", permanent: false },
+    ];
+  },
 };
 
 export default nextConfig;

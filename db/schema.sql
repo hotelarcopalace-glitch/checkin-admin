@@ -65,3 +65,17 @@ CREATE TABLE IF NOT EXISTS notification_log (
 );
 
 CREATE INDEX IF NOT EXISTS notification_log_created_idx ON notification_log (created_at DESC);
+
+
+-- ---------------------------------------------------------------------------
+-- Admin panel users (created in-panel). The env ADMIN_USERNAME /
+-- ADMIN_PASSWORD_HASH login stays as a bootstrap / recovery account.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS admin_users (
+  id            BIGSERIAL PRIMARY KEY,
+  username      TEXT        NOT NULL UNIQUE,
+  password_hash TEXT        NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_login_at TIMESTAMPTZ
+);

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/admin";
+  const next = params.get("next") || "/mng-x7k9";
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +29,7 @@ export default function LoginForm() {
         setBusy(false);
         return;
       }
-      router.replace(next.startsWith("/") ? next : "/admin");
+      router.replace(next.startsWith("/") ? next : "/mng-x7k9");
       router.refresh();
     } catch {
       setError("Network error. Please try again.");

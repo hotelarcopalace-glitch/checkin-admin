@@ -69,7 +69,7 @@ export default async function SmsListPage({
   const pageLink = (page: number) => {
     const next = new URLSearchParams(qs.toString());
     next.set("page", String(page));
-    return `/admin/sms?${next.toString()}`;
+    return `/mng-x7k9/sms?${next.toString()}`;
   };
 
   return (

@@ -13,7 +13,7 @@ export default function NavLink({
   icon: string;
 }) {
   const pathname = usePathname();
-  const active = href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+  const active = href === "/mng-x7k9" ? pathname === "/mng-x7k9" : pathname.startsWith(href);
 
   return (
     <Link

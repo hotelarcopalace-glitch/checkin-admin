@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSessionToken, SESSION_COOKIE, sessionMaxAge } from "@/lib/auth";
 import { verifyPassword } from "@/lib/password";
+import { hasDatabase } from "@/lib/db";
+import { verifyAdminUser } from "@/lib/admin-users";
 
 export const runtime = "nodejs";
 
@@ -52,16 +54,30 @@ export async function POST(req: Request) {
     );
   }
 
-  const ok =
+  // 1) Bootstrap / recovery admin from env vars.
+  let sessionUser: string | null = null;
+  if (
     username.toLowerCase() === expectedUser.toLowerCase() &&
-    (await verifyPassword(password, expectedHash));
+    (await verifyPassword(password, expectedHash))
+  ) {
+    sessionUser = expectedUser;
+  }
 
-  if (!ok) {
+  // 2) Admin users created in-panel (stored in DB).
+  if (!sessionUser && hasDatabase()) {
+    try {
+      sessionUser = await verifyAdminUser(username, password);
+    } catch {
+      // DB down / table missing -> fall through to the failure below.
+    }
+  }
+
+  if (!sessionUser) {
     return NextResponse.json({ error: "Wrong username or password." }, { status: 401 });
   }
 
   attempts.delete(ip);
-  const token = await createSessionToken(expectedUser);
+  const token = await createSessionToken(sessionUser);
   const res = NextResponse.json({ ok: true });
   res.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,

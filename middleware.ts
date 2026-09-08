@@ -2,17 +2,33 @@ import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import { USER_COOKIE, verifyUserToken } from "@/lib/user-auth";
 
+// Admin panel lives under a secret base path (not /admin). /admin and /login
+// no longer exist as routes, so they 404 for anyone who guesses them.
+const ADMIN_BASE = "/mng-x7k9";
+const ADMIN_LOGIN = "/mng-x7k9/login";
+
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
 
-  if (pathname.startsWith("/admin") && !session) {
+  // Protect the whole admin area except its own login page.
+  const inAdmin = pathname === ADMIN_BASE || pathname.startsWith(ADMIN_BASE + "/");
+  if (inAdmin && pathname !== ADMIN_LOGIN && !session) {
     const url = req.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = ADMIN_LOGIN;
     url.search = `?next=${encodeURIComponent(pathname + search)}`;
     return NextResponse.redirect(url);
   }
 
+  // Already signed in and hitting the login page -> go to dashboard.
+  if (pathname === ADMIN_LOGIN && session) {
+    const url = req.nextUrl.clone();
+    url.pathname = ADMIN_BASE;
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // Guest area (unchanged).
   if (pathname === "/user" || pathname.startsWith("/user/")) {
     const user = await verifyUserToken(req.cookies.get(USER_COOKIE)?.value);
     if (pathname === "/user/login" && user) {
@@ -30,16 +46,9 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/login" && session) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/admin";
-    url.search = "";
-    return NextResponse.redirect(url);
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/login", "/user", "/user/:path*"],
+  matcher: ["/mng-x7k9", "/mng-x7k9/:path*", "/user", "/user/:path*"],
 };

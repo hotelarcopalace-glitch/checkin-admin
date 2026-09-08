@@ -41,7 +41,7 @@ export default async function DashboardPage() {
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <h2 className="text-sm font-semibold">Recent messages</h2>
-          <Link href="/admin/sms" className="text-sm font-medium text-indigo-600 hover:underline">
+          <Link href="/mng-x7k9/sms" className="text-sm font-medium text-indigo-600 hover:underline">
             View all →
           </Link>
         </div>
