@@ -63,11 +63,15 @@
     ".ck-sw.on{background:#198754}" +
     ".ck-sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:999px;background:#fff;transition:.15s}" +
     ".ck-sw.on::after{left:18px}" +
-    "nav.main .ck-prof{margin:0 0 4px;padding:0 18px 10px;text-align:center;border-bottom:1px solid #E7D9BF}" +
-    "nav.main .ck-av{width:48px;height:48px;border-radius:999px;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;font-size:22px;background:#5E1B22;color:#E0952A;border:2px solid #E0952A;cursor:pointer}" +
-    "nav.main .ck-pn{font-weight:700;font-size:.95rem;color:#5E1B22}" +
-    "nav.main .ck-pm{font-size:.75rem;color:#7C6A55}" +
-    "nav.main .ck-ep{margin-top:6px;border:1px solid #E0952A;background:#FBF4E8;color:#5E1B22;border-radius:999px;padding:5px 14px;font-weight:700;font-size:.78rem;cursor:pointer}" +
+    "nav.main .ck-prof{display:flex;align-items:center;gap:10px;margin:0 0 4px;padding:10px 14px;border-bottom:1px solid #E7D9BF}" +
+    "nav.main .ck-av{width:38px;height:38px;flex:0 0 38px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:17px;background:#5E1B22;color:#E0952A;border:2px solid #E0952A;cursor:pointer}" +
+    "nav.main .ck-pi{flex:1;min-width:0;line-height:1.25}" +
+    "nav.main .ck-pn{font-weight:700;font-size:.9rem;color:#5E1B22;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}" +
+    "nav.main .ck-pm{font-size:.72rem;color:#7C6A55}" +
+    "nav.main .ck-ep{flex:0 0 auto;border:1px solid #E0952A;background:#FBF4E8;color:#5E1B22;border-radius:999px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;cursor:pointer}" +
+    "nav.main .ck-prof.guest{display:block;text-align:center;padding:12px 18px}" +
+    "nav.main .ck-prof.guest .ck-av{margin:0 auto 6px}" +
+    "nav.main .ck-prof.guest .ck-ep{width:auto;height:auto;padding:5px 14px;font-weight:700;font-size:.78rem;margin-top:6px}" +
     "body.ck-sms-mode footer{padding-top:26px;padding-bottom:26px}" +
     "body.ck-sms-mode footer .wrap>*+*{margin-top:10px}";
 
@@ -261,8 +265,10 @@
     var prof = nav.querySelector(".ck-prof");
     if (!prof) { prof = document.createElement("div"); prof.className = "ck-prof"; nav.insertBefore(prof, ul); }
     if (st.loggedIn) {
-      prof.innerHTML = '<div class="ck-av" data-cka="editprofile">👤</div><div class="ck-pn">' + esc(st.name || "User") + '</div><div class="ck-pm">+91 ' + esc(mob10()) + '</div><button class="ck-ep" data-cka="editprofile">✎ Edit Profile</button>';
+      prof.className = "ck-prof";
+      prof.innerHTML = '<div class="ck-av" data-cka="editprofile">👤</div><div class="ck-pi"><div class="ck-pn">' + esc(st.name || "User") + '</div><div class="ck-pm">+91 ' + esc(mob10()) + '</div></div><button class="ck-ep" data-cka="editprofile" aria-label="Edit Profile" title="Edit Profile">✎</button>';
     } else {
+      prof.className = "ck-prof guest";
       prof.innerHTML = '<div class="ck-av" data-cka="dologin">👤</div><div class="ck-pn">Guest</div><button class="ck-ep" data-cka="dologin">Login / Sign in</button>';
     }
     Array.prototype.slice.call(prof.querySelectorAll("[data-cka]")).forEach(function (b) {
