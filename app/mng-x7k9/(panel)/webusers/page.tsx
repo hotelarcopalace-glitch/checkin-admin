@@ -14,7 +14,14 @@ type OtpRow = {
   used_at: Date | null;
   expires_at: Date;
 };
-type UserRow = { mobile: string; created_at: Date; last_login_at: Date | null };
+type UserRow = {
+  mobile: string;
+  name: string | null;
+  email: string | null;
+  dob: string | null;
+  created_at: Date;
+  last_login_at: Date | null;
+};
 
 function fmt(v: Date | string | null) {
   if (!v) return "—";
@@ -45,8 +52,8 @@ export default async function WebUsersPage() {
        FROM otp_codes ORDER BY created_at DESC LIMIT 100`
     );
     users = await query<UserRow>(
-      `SELECT mobile, created_at, last_login_at
-       FROM app_users ORDER BY last_login_at DESC NULLS LAST, created_at DESC LIMIT 200`
+      `SELECT mobile, name, email, dob, created_at, last_login_at
+       FROM app_users ORDER BY last_login_at DESC NULLS LAST, created_at DESC LIMIT 300`
     );
   } catch {
     needsSetup = true;
@@ -125,18 +132,20 @@ export default async function WebUsersPage() {
         <p className="border-b border-slate-200 px-4 py-3 text-sm font-semibold">
           Logged-in numbers ({users.length})
         </p>
-        <table className="w-full min-w-[520px] text-sm">
+        <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Mobile</th>
-              <th className="px-4 py-3">First seen</th>
+              <th className="px-4 py-3">Name</th>
+              <th className="px-4 py-3">Email</th>
+              <th className="px-4 py-3">DOB</th>
               <th className="px-4 py-3">Last login</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {users.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
                   Abhi koi web user nahi.
                 </td>
               </tr>
@@ -144,7 +153,9 @@ export default async function WebUsersPage() {
               users.map((u, i) => (
                 <tr key={i}>
                   <td className="px-4 py-3 font-medium text-slate-800">{u.mobile}</td>
-                  <td className="px-4 py-3 text-slate-500">{fmt(u.created_at)}</td>
+                  <td className="px-4 py-3 text-slate-700">{u.name || "—"}</td>
+                  <td className="px-4 py-3 text-slate-500">{u.email || "—"}</td>
+                  <td className="px-4 py-3 text-slate-500">{u.dob || "—"}</td>
                   <td className="px-4 py-3 text-slate-500">{fmt(u.last_login_at)}</td>
                 </tr>
               ))
