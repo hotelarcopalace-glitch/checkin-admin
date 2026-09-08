@@ -17,6 +17,8 @@
 
   var css =
     "#ckfab{position:fixed;right:16px;bottom:16px;z-index:2147483000;background:#4f46e5;color:#fff;border:none;border-radius:999px;padding:13px 20px;font:600 15px system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 24px rgba(79,70,229,.4);cursor:pointer}" +
+    "#ckmenufab{position:fixed;right:16px;bottom:74px;z-index:2147483000;width:50px;height:50px;background:#ea580c;color:#fff;border:none;border-radius:999px;font:400 22px system-ui;box-shadow:0 8px 24px rgba(234,88,12,.4);cursor:pointer;display:none}" +
+    "#ckmenufab.on{display:block}" +
     "#ckov{position:fixed;inset:0;z-index:2147483001;display:none;align-items:flex-end;justify-content:center;background:rgba(15,23,42,.55);font:400 15px system-ui,-apple-system,Segoe UI,sans-serif}" +
     "#ckov.on{display:flex}" +
     "#ckov.full{align-items:stretch;background:#eef1f6}" +
@@ -82,7 +84,7 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function fmt(v) { var d = new Date(v); if (isNaN(d)) return ""; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
 
-  var fab, ov, sheet;
+  var fab, menufab, ov, sheet;
 
   function open() { render(); ov.classList.add("on"); }
   function close() { ov.classList.remove("on"); try { sessionStorage.setItem("ck_skip", "1"); } catch (e) {} }
@@ -95,6 +97,7 @@
       st.loggedIn = !!d.loggedIn; st.mobile = d.mobile || ""; st.name = d.name || ""; st.messages = d.messages || []; st.total = d.total || 0; st.profile = d.profile || {};
     } catch (e) { st.loggedIn = false; }
     if (fab) fab.textContent = st.loggedIn ? "🔔 My SMS" : "Login";
+    if (menufab) menufab.classList.toggle("on", st.loggedIn);
     ov.classList.toggle("full", st.loggedIn);
   }
 
@@ -121,7 +124,7 @@
 
   async function logout() {
     try { await fetch(API.logout, { method: "POST", credentials: "same-origin" }); } catch (e) {}
-    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; await refreshMe(); render();
+    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; st.drawer = false; st.view = "messages"; try { close(); } catch (e) {} await refreshMe(); render();
   }
 
   function renderLogin() {
@@ -148,7 +151,7 @@
   function renderPage() {
     if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
     var h = "";
-    h += '<div class="ckph"><button class="ckmenu" data-a="menu">☰</button><div style="flex:1"><div class="ckpt">SMS Notifications</div><div class="ckpsub">+91 ' + esc(st.mobile) + (st.name ? " · " + esc(st.name) : "") + '</div></div><button class="ckback" data-a="close">✕</button></div>';
+    h += '<div class="ckph"><button class="ckmenu" data-a="opendrawer">☰</button><div style="flex:1"><div class="ckpt">SMS Notifications</div><div class="ckpsub">+91 ' + esc(st.mobile) + (st.name ? " · " + esc(st.name) : "") + '</div></div><button class="ckback" data-a="close">✕</button></div>';
     h += '<div class="ckbody">';
     h += '<div class="ckfrow"><input class="ckdate" type="date" id="ckdate" value="' + esc(st.date) + '"><button class="ckref" data-a="refresh" title="Refresh">⟳</button></div>';
     h += '<div class="cktotal">Total SMS - ' + st.total + "</div>";
@@ -157,10 +160,15 @@
     if (!st.messages.length) h += '<div class="ckempty">Koi SMS nahi mila.' + (st.date ? " (is date par)" : "") + "</div>";
     st.messages.forEach(function (m) { h += '<div class="ckcard"><p>' + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>"; });
     h += "</div>";
-    // orange side drawer
-    h += '<div class="ckdrw' + (st.drawer ? " on" : "") + '"><div class="bg" data-a="menu"></div><div class="panel">';
+    sheet.innerHTML = h;
+    var dt = sheet.querySelector("#ckdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(render); };
+  }
+
+  function renderDrawer() {
+    if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
+    var h = '<div class="ckdrw on"><div class="bg" data-a="closedrawer"></div><div class="panel">';
     h += '<div class="prof"><div class="av">👤</div><div style="font-weight:600;font-size:16px">' + esc(st.name || "User") + '</div><div style="font-size:12px;opacity:.9">+91 ' + esc(st.mobile) + '</div><button class="edit" data-a="editprofile">✎ Edit profile</button></div>';
-    h += '<div class="ckdi" data-a="menu">📩 SMS Notifications <span class="sw on"></span></div>';
+    h += '<div class="ckdi" data-a="closedrawer">📩 SMS Notifications <span class="sw on"></span></div>';
     h += '<div class="ckdi" data-a="push">🔔 Push Notification <span class="sw' + (st.push ? " on" : "") + '"></span></div>';
     h += '<div class="ckdi" data-a="editprofile">👤 Edit Profile</div>';
     h += '<div class="ckdi" data-a="rate">⭐ Rate on Google</div>';
@@ -169,7 +177,6 @@
     h += '<div class="ckdi" data-a="logout">⎋ Log out</div>';
     h += "</div></div>";
     sheet.innerHTML = h;
-    var dt = sheet.querySelector("#ckdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(render); };
   }
 
   function renderEdit() {
@@ -200,7 +207,7 @@
     sheet.innerHTML = h;
   }
 
-  function render() { if (!st.loggedIn) renderLogin(); else if (st.view === "edit") renderEdit(); else renderPage(); }
+  function render() { if (st.loggedIn && st.drawer) renderDrawer(); else if (!st.loggedIn) renderLogin(); else if (st.view === "edit") renderEdit(); else renderPage(); }
 
   function onClick(e) {
     var t = e.target.closest("[data-a]"); if (!t) return;
@@ -213,7 +220,8 @@
     else if (a === "logout") logout();
     else if (a === "refresh") refreshMe().then(render);
     else if (a === "clear") { st.date = ""; refreshMe().then(render); }
-    else if (a === "menu") { st.drawer = !st.drawer; render(); }
+    else if (a === "opendrawer") { st.drawer = true; render(); }
+    else if (a === "closedrawer") { st.drawer = false; render(); }
     else if (a === "editprofile") { st.drawer = false; st.view = "edit"; st.err = ""; render(); }
     else if (a === "tomsg") { st.view = "messages"; render(); }
     else if (a === "savep") saveProfileForm();
@@ -246,10 +254,12 @@
   function boot() {
     var s = document.createElement("style"); s.textContent = css; document.head.appendChild(s);
     fab = el('<button id="ckfab">Login</button>');
+    menufab = el('<button id="ckmenufab" aria-label="Menu">☰</button>');
     ov = el('<div id="ckov"><div id="cksheet"></div></div>');
     sheet = ov.querySelector("#cksheet");
-    document.body.appendChild(fab); document.body.appendChild(ov);
+    document.body.appendChild(fab); document.body.appendChild(menufab); document.body.appendChild(ov);
     fab.onclick = open;
+    menufab.onclick = function () { st.drawer = true; ov.classList.add("on"); ov.classList.add("full"); render(); };
     ov.onclick = function (e) { if (e.target === ov && !st.loggedIn) close(); };
     sheet.addEventListener("click", onClick);
     refreshMe().then(function () {
