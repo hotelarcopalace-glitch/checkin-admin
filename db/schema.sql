@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS app_users (
   last_login_at TIMESTAMPTZ
 );
 
+-- Guest profile: an optional display name they can set for themselves.
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS name TEXT;
+
 CREATE TABLE IF NOT EXISTS otp_codes (
   id         BIGSERIAL PRIMARY KEY,
   mobile     TEXT        NOT NULL,

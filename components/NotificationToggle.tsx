@@ -25,6 +25,17 @@ export default function NotificationToggle() {
       ].join(" · ")
     );
     onForegroundMessage((title, body) => setToast({ title, body }));
+
+    // Auto-ask for notification permission after login — no manual button click.
+    // (The browser's own Allow/Block prompt is still required by the browser.)
+    if (
+      firebaseReady() &&
+      typeof Notification !== "undefined" &&
+      Notification.permission !== "denied"
+    ) {
+      enable();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function enable() {

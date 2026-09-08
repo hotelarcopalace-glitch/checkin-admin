@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import GuestLoginSheet from "@/components/GuestLoginSheet";
+import InstallButton from "@/components/InstallButton";
 import NotificationToggle from "@/components/NotificationToggle";
+import ProfileEditor from "@/components/ProfileEditor";
 import { formatDate, StatusBadge } from "@/components/ui";
 import { hasDatabase, query } from "@/lib/db";
 import { USER_COOKIE, verifyUserToken } from "@/lib/user-auth";
@@ -35,6 +37,7 @@ export default async function UserHome() {
   }
 
   let rows: Row[] = [];
+  let name = "";
   if (hasDatabase()) {
     try {
       rows = await query<Row>(
@@ -46,16 +49,22 @@ export default async function UserHome() {
     } catch {
       rows = [];
     }
+    try {
+      const u = await query<{ name: string | null }>(
+        `SELECT name FROM app_users WHERE mobile = $1 LIMIT 1`,
+        [session.mobile]
+      );
+      name = u[0]?.name ?? "";
+    } catch {
+      name = "";
+    }
   }
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-8">
       <div className="mx-auto w-full max-w-lg space-y-5">
         <header className="flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">My messages</h1>
-            <p className="text-sm text-slate-500">{session.mobile}</p>
-          </div>
+          <h1 className="text-lg font-semibold tracking-tight">My messages</h1>
           <form action="/api/user/logout" method="post">
             <button className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
               Log out
@@ -63,6 +72,8 @@ export default async function UserHome() {
           </form>
         </header>
 
+        <ProfileEditor mobile={session.mobile} initialName={name} />
+        <InstallButton />
         <NotificationToggle />
 
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
