@@ -59,6 +59,11 @@
     ".ck-sw.on{background:#198754}" +
     ".ck-sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:999px;background:#fff;transition:.15s}" +
     ".ck-sw.on::after{left:18px}" +
+    "nav.main .ck-prof{margin:0 0 8px;padding:4px 18px 14px;text-align:center;border-bottom:1px solid #E7D9BF}" +
+    "nav.main .ck-av{width:58px;height:58px;border-radius:999px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:26px;background:#5E1B22;color:#E0952A;border:2px solid #E0952A;cursor:pointer}" +
+    "nav.main .ck-pn{font-weight:700;font-size:1rem;color:#5E1B22}" +
+    "nav.main .ck-pm{font-size:.78rem;color:#7C6A55}" +
+    "nav.main .ck-ep{margin-top:8px;border:1px solid #E0952A;background:#FBF4E8;color:#5E1B22;border-radius:999px;padding:6px 16px;font-weight:700;font-size:.8rem;cursor:pointer}" +
     "body.ck-sms-mode footer{padding-top:26px;padding-bottom:26px}" +
     "body.ck-sms-mode footer .wrap>*+*{margin-top:10px}";
 
@@ -241,12 +246,25 @@
     else if (a === "rate") window.open(RATE_URL, "_blank");
   }
   function injectMenu() {
-    var ul = document.querySelector("nav.main ul");
-    if (!ul) return;
+    var nav = document.querySelector("nav.main");
+    var ul = nav ? nav.querySelector("ul") : null;
+    if (!nav || !ul) return;
     if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
+    // Profile header at the very top (above Home) — round avatar + Edit Profile.
+    var prof = nav.querySelector(".ck-prof");
+    if (!prof) { prof = document.createElement("div"); prof.className = "ck-prof"; nav.insertBefore(prof, ul); }
+    if (st.loggedIn) {
+      prof.innerHTML = '<div class="ck-av" data-cka="editprofile">👤</div><div class="ck-pn">' + esc(st.name || "User") + '</div><div class="ck-pm">+91 ' + esc(st.mobile) + '</div><button class="ck-ep" data-cka="editprofile">✎ Edit Profile</button>';
+    } else {
+      prof.innerHTML = '<div class="ck-av" data-cka="dologin">👤</div><div class="ck-pn">Guest</div><button class="ck-ep" data-cka="dologin">Login / Sign in</button>';
+    }
+    Array.prototype.slice.call(prof.querySelectorAll("[data-cka]")).forEach(function (b) {
+      b.addEventListener("click", function (e) { e.preventDefault(); ckNav(b.getAttribute("data-cka")); });
+    });
+    // Menu list items (Edit Profile is now the top profile block).
     Array.prototype.slice.call(ul.querySelectorAll("li.ck-li")).forEach(function (x) { x.remove(); });
     var items = st.loggedIn
-      ? [{ t: "My SMS Notifications", a: "sms", sw: "on" }, { t: "Push Notification", a: "push", sw: st.push ? "on" : "" }, { t: "Edit Profile", a: "editprofile" }, { t: "Rate on Google", a: "rate" }, { t: "Logout", a: "logout" }]
+      ? [{ t: "My SMS Notifications", a: "sms", sw: "on" }, { t: "Push Notification", a: "push", sw: st.push ? "on" : "" }, { t: "Rate on Google", a: "rate" }, { t: "Logout", a: "logout" }]
       : [{ t: "My SMS / Login", a: "dologin" }];
     items.forEach(function (it) {
       var li = document.createElement("li"); li.className = "ck-li";
