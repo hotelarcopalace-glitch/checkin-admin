@@ -36,10 +36,10 @@
     ".ckinfo{background:#FBF4E8;color:#7a4d0a;border:1px solid #F1CB86;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:10px}" +
     ".cklbl{font-size:13px;font-weight:700;color:#5E1B22;margin:14px 2px 6px}" +
     /* in-page SMS section */
-    "#ck-sms{max-width:760px;margin:0 auto;padding:26px 18px 64px}" +
-    "#ck-sms .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}" +
-    "#ck-sms h1{font:700 1.7rem 'Fraunces',Georgia,serif;color:#5E1B22;margin:0}" +
-    "#ck-sms .num{font-size:.95rem;color:#7C6A55;font-weight:600}" +
+    "#ck-sms{max-width:760px;margin:0 auto;padding:16px 16px 34px;min-height:60vh}" +
+    "#ck-sms .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}" +
+    "#ck-sms .ttl{font:700 1.05rem 'Fraunces',Georgia,serif;color:#5E1B22;display:inline}" +
+    "#ck-sms .num{font-size:.8rem;color:#7C6A55;font-weight:600}" +
     "#ck-sms .filt{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}" +
     "#ck-sms .dt{flex:1;min-width:150px;border:1px solid #E7D9BF;border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;color:#2C231B;outline:none}" +
     "#ck-sms .rf{width:46px;height:46px;flex:none;border:none;border-radius:12px;background:#E0952A;color:#431016;font-size:18px;cursor:pointer}" +
@@ -47,14 +47,20 @@
     "#ck-sms .clr{border:none;background:none;color:#A9660F;font-size:.85rem;font-weight:700;cursor:pointer;padding:2px 0}" +
     "#ck-sms .cap{display:flex;justify-content:space-between;align-items:baseline;margin:8px 2px 10px;color:#7C6A55;font-size:.85rem}" +
     "#ck-sms .cap b{font-size:1rem;color:#2C231B}" +
-    "#ck-sms .card{background:#fff;border:1px solid #ecdfc6;border-radius:14px;padding:13px 15px;margin-bottom:10px;box-shadow:0 1px 3px rgba(67,16,22,.05)}" +
-    "#ck-sms .card p{margin:0;font-size:.95rem;color:#431016;line-height:1.5}" +
-    "#ck-sms .card small{display:block;margin-top:6px;color:#a08a6e;font-size:.78rem}" +
-    "#ck-sms .empty{text-align:center;color:#a08a6e;padding:46px 0}" +
-    "#ck-sms .back{border:1px solid #E7D9BF;background:#fff;color:#5E1B22;border-radius:999px;padding:8px 16px;font-weight:700;font-size:.85rem;cursor:pointer}" +
+    "#ck-sms .card{background:#fff;border:1px solid #ecdfc6;border-radius:10px;padding:9px 12px;margin-bottom:7px}" +
+    "#ck-sms .card p{margin:0;font-size:.8rem;color:#431016;line-height:1.4}" +
+    "#ck-sms .card small{display:block;margin-top:3px;color:#a08a6e;font-size:.7rem}" +
+    "#ck-sms .empty{text-align:center;color:#a08a6e;padding:40px 0}" +
+    "#ck-sms .back{border:1px solid #E7D9BF;background:#fff;color:#5E1B22;border-radius:999px;padding:7px 14px;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap}" +
     "#ck-sms .form{max-width:520px}" +
     "#ck-sms .fld{margin-bottom:10px}" +
-    "nav.main a.ck-navitem{color:#5E1B22 !important}";
+    "nav.main a.ck-navitem{color:#5E1B22 !important;display:flex;align-items:center;justify-content:space-between;gap:10px}" +
+    ".ck-sw{width:38px;height:22px;border-radius:999px;background:#d8c7ad;position:relative;flex:none}" +
+    ".ck-sw.on{background:#198754}" +
+    ".ck-sw::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:999px;background:#fff;transition:.15s}" +
+    ".ck-sw.on::after{left:18px}" +
+    "body.ck-sms-mode footer{padding-top:26px;padding-bottom:26px}" +
+    "body.ck-sms-mode footer .wrap>*+*{margin-top:10px}";
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function fmt(v) { var d = new Date(v); if (isNaN(d)) return ""; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
@@ -149,6 +155,7 @@
     st.view = view || "messages";
     if (marketMain) marketMain.hidden = true;
     smsBox.hidden = false;
+    document.body.classList.add("ck-sms-mode");
     setPath("/sms");
     try { window.scrollTo(0, 0); } catch (e) {}
     renderSms();
@@ -156,6 +163,7 @@
   function hideSms() {
     if (marketMain) marketMain.hidden = false;
     if (smsBox) smsBox.hidden = true;
+    document.body.classList.remove("ck-sms-mode");
     setPath("/");
   }
   function renderSms() {
@@ -164,7 +172,7 @@
     var dt = smsBox.querySelector("#cksmsdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(renderSms); };
   }
   function pageHtml() {
-    var h = '<div class="top"><div><h1>My SMS Notifications</h1><div class="num">+91 ' + esc(st.mobile) + (st.name ? " · " + esc(st.name) : "") + '</div></div><button class="back" data-a="home">← Home</button></div>';
+    var h = '<div class="top"><div><span class="ttl">My SMS Notifications</span> <span class="num">· +91 ' + esc(st.mobile) + '</span></div><button class="back" data-a="editprofile">✎ Edit Profile</button></div>';
     h += '<div class="filt"><input class="dt" type="date" id="cksmsdate" value="' + esc(st.date) + '"><button class="rf" data-a="refresh" title="Refresh">⟳</button></div>';
     h += '<div class="total">Total SMS - ' + st.total + "</div>";
     if (st.date) h += '<button class="clr" data-a="clear">Clear Filters</button>';
@@ -201,6 +209,7 @@
     else if (a === "refresh") refreshMe().then(renderSms);
     else if (a === "clear") { st.date = ""; refreshMe().then(renderSms); }
     else if (a === "tomsg") { st.view = "messages"; renderSms(); }
+    else if (a === "editprofile") { st.view = "edit"; renderSms(); }
     else if (a === "logout") logout();
     else if (a === "savep") saveProfileForm();
   }
@@ -218,7 +227,12 @@
   }
 
   // ---- site menu integration ----
+  function askPush() {
+    if (typeof Notification === "undefined") { alert("Is browser me notifications support nahi."); return; }
+    Notification.requestPermission().then(function (p) { st.push = p === "granted"; injectMenu(); });
+  }
   function ckNav(a) {
+    if (a === "push") { askPush(); return; }
     closeSiteMenu();
     if (a === "dologin") { if (st.loggedIn) showSms("messages"); else { st.step = "mobile"; openLogin(); } }
     else if (a === "sms") { if (st.loggedIn) showSms("messages"); else { st.step = "mobile"; openLogin(); } }
@@ -229,14 +243,16 @@
   function injectMenu() {
     var ul = document.querySelector("nav.main ul");
     if (!ul) return;
+    if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
     Array.prototype.slice.call(ul.querySelectorAll("li.ck-li")).forEach(function (x) { x.remove(); });
     var items = st.loggedIn
-      ? [["My SMS Notifications", "sms"], ["Edit Profile", "editprofile"], ["Rate on Google", "rate"], ["Logout", "logout"]]
-      : [["My SMS / Login", "dologin"]];
+      ? [{ t: "My SMS Notifications", a: "sms", sw: "on" }, { t: "Push Notification", a: "push", sw: st.push ? "on" : "" }, { t: "Edit Profile", a: "editprofile" }, { t: "Rate on Google", a: "rate" }, { t: "Logout", a: "logout" }]
+      : [{ t: "My SMS / Login", a: "dologin" }];
     items.forEach(function (it) {
       var li = document.createElement("li"); li.className = "ck-li";
-      var a = document.createElement("a"); a.href = "#"; a.className = "ck-navitem"; a.textContent = it[0];
-      a.addEventListener("click", function (e) { e.preventDefault(); ckNav(it[1]); });
+      var a = document.createElement("a"); a.href = "#"; a.className = "ck-navitem";
+      a.innerHTML = esc(it.t) + (it.sw !== undefined ? '<span class="ck-sw ' + it.sw + '"></span>' : "");
+      a.addEventListener("click", function (e) { e.preventDefault(); ckNav(it.a); });
       li.appendChild(a); ul.appendChild(li);
     });
   }
@@ -253,6 +269,15 @@
     fab.onclick = fabClick;
     ov.onclick = function (e) { if (e.target === ov) closeLogin(); };
     sheet.addEventListener("click", onSheetClick);
+    // Logo = Home (also leaves the SMS page).
+    var brand = document.querySelector(".brand");
+    if (brand) { brand.style.cursor = "pointer"; brand.addEventListener("click", function () { if (smsBox && !smsBox.hidden) hideSms(); try { window.scrollTo(0, 0); } catch (e) {} }); }
+    // A real site nav link (Home/About/…) while on the SMS page -> show the site first.
+    var nav = document.querySelector("nav.main");
+    if (nav) nav.addEventListener("click", function (e) {
+      var a = e.target.closest('a[href^="#"]');
+      if (a && !a.classList.contains("ck-navitem") && smsBox && !smsBox.hidden) hideSms();
+    });
     window.addEventListener("popstate", function () {
       if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); }
       else hideSms();
