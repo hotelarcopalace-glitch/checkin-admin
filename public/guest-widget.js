@@ -42,18 +42,20 @@
     "#ck-bar button{flex:1;border:1px solid #E7D9BF;background:#FBF4E8;color:#5E1B22;border-radius:12px;padding:11px;font-weight:700;font-size:.92rem;cursor:pointer}" +
     "#ck-bar button.pri{background:#5E1B22;color:#FBF4E8;border-color:#5E1B22}" +
     "#ck-sms .top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}" +
-    "#ck-sms .ttl{font:700 1.05rem 'Fraunces',Georgia,serif;color:#5E1B22;display:inline}" +
-    "#ck-sms .num{font-size:.8rem;color:#7C6A55;font-weight:600}" +
-    "#ck-sms .filt{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}" +
+    "#ck-sms .ttl{font:700 1.2rem 'Fraunces',Georgia,serif;color:#5E1B22;display:inline}" +
+    "#ck-sms .num{font-size:.82rem;color:#7C6A55;font-weight:600}" +
+    "#ck-sms .filt{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}" +
     "#ck-sms .dt{flex:1;min-width:150px;border:1px solid #E7D9BF;border-radius:12px;padding:11px 12px;font-size:15px;background:#fff;color:#2C231B;outline:none}" +
     "#ck-sms .rf{width:46px;height:46px;flex:none;border:none;border-radius:12px;background:#E0952A;color:#431016;font-size:18px;cursor:pointer}" +
     "#ck-sms .total{font-size:1.5rem;font-weight:800;color:#5E1B22}" +
     "#ck-sms .clr{border:none;background:none;color:#A9660F;font-size:.85rem;font-weight:700;cursor:pointer;padding:2px 0}" +
-    "#ck-sms .cap{display:flex;justify-content:space-between;align-items:baseline;margin:8px 2px 10px;color:#7C6A55;font-size:.85rem}" +
-    "#ck-sms .cap b{font-size:1rem;color:#2C231B}" +
-    "#ck-sms .card{background:#fff;border:1px solid #ecdfc6;border-radius:10px;padding:9px 12px;margin-bottom:7px}" +
-    "#ck-sms .card p{margin:0;font-size:.8rem;color:#431016;line-height:1.4}" +
-    "#ck-sms .card small{display:block;margin-top:3px;color:#a08a6e;font-size:.7rem}" +
+    "#ck-sms .cap{display:flex;justify-content:space-between;align-items:baseline;margin:8px 2px 12px;color:#7C6A55;font-size:.9rem}" +
+    "#ck-sms .cap b{font-size:1.05rem;color:#2C231B}" +
+    "#ck-sms .card{background:#fff;border:1px solid #ecdfc6;border-radius:12px;padding:12px 13px;margin-bottom:9px;transition:box-shadow .3s,border-color .3s,background .3s}" +
+    "#ck-sms .card p{margin:0;font-size:.95rem;color:#431016;line-height:1.5}" +
+    "#ck-sms .card small{display:block;margin-top:6px;color:#a08a6e;font-size:.78rem}" +
+    "#ck-sms .card.hl{background:#FFF7E6;border:2px solid #E0952A;box-shadow:0 0 0 3px rgba(224,149,42,.18)}" +
+    "#ck-sms .card .nb{display:inline-block;background:#E0952A;color:#431016;font-size:.62rem;font-weight:700;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}" +
     "#ck-sms .empty{text-align:center;color:#a08a6e;padding:40px 0}" +
     "#ck-sms .back{border:1px solid #E7D9BF;background:#fff;color:#5E1B22;border-radius:999px;padding:7px 14px;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap}" +
     "#ck-sms .form{max-width:520px}" +
@@ -108,6 +110,32 @@
     } catch (e) { st.loggedIn = false; }
     if (fab) fab.textContent = st.loggedIn ? "My SMS" : "Login";
     injectMenu();
+    checkNewSms();
+  }
+  // Detect a newer SMS (only when not date-filtered) and pop a browser notification.
+  function checkNewSms() {
+    if (st.date) return;
+    var top = st.messages && st.messages[0];
+    if (!top) return;
+    if (st.lastTop === undefined) { st.lastTop = top.created_at; return; } // first load: baseline only
+    if (top.created_at === st.lastTop) return;
+    var prev = st.lastTop; st.lastTop = top.created_at;
+    if (prev && top.created_at > prev) notifyNewSms(top);
+  }
+  function notifyNewSms(m) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    try {
+      var n = new Notification("New SMS · CHECKIN", { body: (m.message || "").slice(0, 120), tag: "ck-sms-" + m.created_at });
+      n.onclick = function () { try { window.focus(); } catch (e) {} openSmsHighlight(m.created_at); n.close(); };
+    } catch (e) {}
+  }
+  function openSmsHighlight(ts) {
+    st.hl = ts; st.view = "messages";
+    if (document.body.classList.contains("ck-sms-mode")) renderSms(); else showSms("messages");
+  }
+  function startPolling() {
+    clearInterval(st.pollTimer);
+    st.pollTimer = setInterval(function () { if (st.loggedIn && !document.hidden) refreshMe(); }, 30000);
   }
   async function sendOtp() {
     if (st.busy) return; st.busy = true; st.err = ""; renderLogin();
@@ -124,12 +152,13 @@
       var r = await fetch(API.verify, { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ mobile: st.mobile, code: st.code }) });
       var d = await r.json();
       if (!r.ok) { st.err = d.error || "Wrong code."; st.busy = false; renderLogin(); return; }
-      st.busy = false; closeLogin(); await refreshMe(); showSms("messages");
+      st.busy = false; closeLogin(); await refreshMe(); showSms("messages"); startPolling();
     } catch (e) { st.err = "Network error."; st.busy = false; renderLogin(); }
   }
   async function logout() {
     try { await fetch(API.logout, { method: "POST", credentials: "same-origin" }); } catch (e) {}
-    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; st.view = "messages";
+    clearInterval(st.pollTimer);
+    st.loggedIn = false; st.step = "mobile"; st.mobile = ""; st.code = ""; st.date = ""; st.view = "messages"; st.lastTop = undefined;
     hideSms(); await refreshMe();
   }
 
@@ -185,6 +214,15 @@
     if (!smsBox) return;
     smsBox.innerHTML = st.view === "edit" ? editHtml() : pageHtml();
     var dt = smsBox.querySelector("#cksmsdate"); if (dt) dt.onchange = function () { st.date = this.value; refreshMe().then(renderSms); };
+    if (st.hl && st.view !== "edit") {
+      var hc = smsBox.querySelector(".card.hl");
+      if (hc) {
+        try { hc.scrollIntoView({ behavior: "smooth", block: "center" }); } catch (e) {}
+        var t = st.hl;
+        clearTimeout(st.hlTimer);
+        st.hlTimer = setTimeout(function () { if (st.hl === t) { st.hl = ""; renderSms(); } }, 5000);
+      }
+    }
   }
   function mob10() { return (st.mobile || "").replace(/^\+?91/, ""); }
   function pageHtml() {
@@ -194,7 +232,10 @@
     if (st.date) h += '<button class="clr" data-a="clear">Clear Filters</button>';
     h += '<div class="cap"><b>' + (st.date ? "Filtered" : "All SMS") + "</b><span>" + st.messages.length + " messages</span></div>";
     if (!st.messages.length) h += '<div class="empty">Koi SMS nahi mila.' + (st.date ? " (is date par)" : "") + "</div>";
-    st.messages.forEach(function (m) { h += '<div class="card"><p>' + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>"; });
+    st.messages.forEach(function (m) {
+      var isHl = st.hl && m.created_at === st.hl;
+      h += '<div class="card' + (isHl ? " hl" : "") + '" data-ts="' + esc(m.created_at) + '">' + (isHl ? '<span class="nb">New</span>' : "") + "<p>" + esc(m.message) + "</p><small>" + esc(fmt(m.created_at)) + "</small></div>";
+    });
     return h;
   }
   function editHtml() {
@@ -321,8 +362,12 @@
     });
     refreshMe().then(function () {
       var skipped = false; try { skipped = sessionStorage.getItem("ck_skip") === "1"; } catch (e) {}
+      // Deep-link from a notification: /sms?hl=<created_at> highlights that SMS.
+      var hlq = ""; try { hlq = new URL(location.href).searchParams.get("hl") || ""; } catch (e) {}
+      if (hlq && st.loggedIn) st.hl = hlq;
       if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); else openLogin(); }
       else if (!st.loggedIn && !skipped) setTimeout(openLogin, 700);
+      if (st.loggedIn) startPolling();
     });
   }
 
