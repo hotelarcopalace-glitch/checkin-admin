@@ -98,7 +98,7 @@
       st.loggedIn = !!d.loggedIn; st.mobile = d.mobile || ""; st.name = d.name || ""; st.messages = d.messages || []; st.total = d.total || 0; st.profile = d.profile || {};
     } catch (e) { st.loggedIn = false; }
     if (fab) fab.textContent = st.loggedIn ? "🔔 My SMS" : "Login";
-    if (menufab) menufab.classList.toggle("on", st.loggedIn);
+    if (menufab) menufab.classList.add("on");
     ov.classList.toggle("full", st.loggedIn);
   }
 
@@ -169,14 +169,27 @@
   function renderDrawer() {
     if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
     var h = '<div class="ckdrw on"><div class="bg" data-a="closedrawer"></div><div class="panel">';
-    h += '<div class="prof"><div class="av">👤</div><div style="font-weight:600;font-size:16px">' + esc(st.name || "User") + '</div><div style="font-size:12px;opacity:.9">+91 ' + esc(st.mobile) + '</div><button class="edit" data-a="editprofile">✎ Edit profile</button></div>';
-    h += '<div class="ckdi" data-a="closedrawer">📩 SMS Notifications <span class="sw on"></span></div>';
-    h += '<div class="ckdi" data-a="push">🔔 Push Notification <span class="sw' + (st.push ? " on" : "") + '"></span></div>';
-    h += '<div class="ckdi" data-a="editprofile">👤 Edit Profile</div>';
+    if (st.loggedIn) {
+      h += '<div class="prof"><div class="av">👤</div><div style="font-weight:600;font-size:16px">' + esc(st.name || "User") + '</div><div style="font-size:12px;opacity:.9">+91 ' + esc(st.mobile) + '</div><button class="edit" data-a="editprofile">✎ Edit profile</button></div>';
+    } else {
+      h += '<div class="prof"><div class="av">C</div><div style="font-weight:600;font-size:16px">CHECKIN</div><div style="font-size:12px;opacity:.9">Hotel Software</div><button class="edit" data-a="dologin">Login / Sign in</button></div>';
+    }
+    // website navigation (single-page anchors)
+    h += '<div class="ckdi" data-a="go" data-h="#home">🏠 Home</div>';
+    h += '<div class="ckdi" data-a="go" data-h="#about">ℹ️ About Us</div>';
+    h += '<div class="ckdi" data-a="go" data-h="#services">🛎️ Services</div>';
+    h += '<div class="ckdi" data-a="go" data-h="#modules">🧩 Modules</div>';
+    h += '<div class="ckdi" data-a="go" data-h="#contact">📞 Contact</div>';
+    h += '<div style="height:1px;background:rgba(255,255,255,.25);margin:6px 20px"></div>';
+    h += '<div class="ckdi" data-a="sms">📩 SMS Notifications <span class="sw' + (st.loggedIn ? " on" : "") + '"></span></div>';
+    if (st.loggedIn) {
+      h += '<div class="ckdi" data-a="push">🔔 Push Notification <span class="sw' + (st.push ? " on" : "") + '"></span></div>';
+      h += '<div class="ckdi" data-a="editprofile">👤 Edit Profile</div>';
+    }
     h += '<div class="ckdi" data-a="rate">⭐ Rate on Google</div>';
     h += '<div class="ckdi" data-a="help">💬 Help &amp; Support</div>';
     h += '<div class="ckdi" data-a="share">↗ Share App</div>';
-    h += '<div class="ckdi" data-a="logout">⎋ Log out</div>';
+    if (st.loggedIn) h += '<div class="ckdi" data-a="logout">⎋ Log out</div>';
     h += "</div></div>";
     sheet.innerHTML = h;
   }
@@ -209,7 +222,12 @@
     sheet.innerHTML = h;
   }
 
-  function render() { if (st.loggedIn && st.drawer) renderDrawer(); else if (!st.loggedIn) renderLogin(); else if (st.view === "edit") renderEdit(); else renderPage(); }
+  function render() {
+    if (st.drawer) { ov.classList.add("full"); renderDrawer(); }
+    else if (!st.loggedIn) { ov.classList.remove("full"); renderLogin(); }
+    else if (st.view === "edit") { ov.classList.add("full"); renderEdit(); }
+    else { ov.classList.add("full"); renderPage(); }
+  }
 
   function onClick(e) {
     var t = e.target.closest("[data-a]"); if (!t) return;
@@ -223,7 +241,10 @@
     else if (a === "refresh") refreshMe().then(render);
     else if (a === "clear") { st.date = ""; refreshMe().then(render); }
     else if (a === "opendrawer") { st.drawer = true; render(); }
-    else if (a === "closedrawer") { st.drawer = false; render(); }
+    else if (a === "closedrawer") { st.drawer = false; if (st.loggedIn) render(); else close(); }
+    else if (a === "go") { st.drawer = false; close(); var hh = t.getAttribute("data-h"); if (hh) { try { location.hash = hh; } catch (e) {} } }
+    else if (a === "sms") { st.drawer = false; if (st.loggedIn) { st.view = "messages"; render(); } else { st.step = "mobile"; renderLogin(); } }
+    else if (a === "dologin") { st.drawer = false; st.step = "mobile"; renderLogin(); }
     else if (a === "editprofile") { st.drawer = false; st.view = "edit"; st.err = ""; render(); }
     else if (a === "tomsg") { st.view = "messages"; render(); }
     else if (a === "savep") saveProfileForm();
