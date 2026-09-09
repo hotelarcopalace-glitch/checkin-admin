@@ -474,6 +474,15 @@
 
 <script>
   try{document.getElementById('yr').textContent=new Date().getFullYear();}catch(e){}
+  // Anchor jumps must clear the sticky header (which changes height when the nav
+  // wraps). Measure it and set scroll-padding-top precisely, on load + resize.
+  (function(){
+    var h=document.querySelector('header');
+    function fix(){ if(h) document.documentElement.style.scrollPaddingTop=(h.offsetHeight+12)+'px'; }
+    fix();
+    window.addEventListener('load',fix);
+    window.addEventListener('resize',fix);
+  })();
   function toggleNav(btn){
     var h=document.querySelector('header');
     var open=h.classList.toggle('nav-open');
