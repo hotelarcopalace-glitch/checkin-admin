@@ -74,6 +74,15 @@
     "nav.main .ck-prof.guest{display:block;text-align:center;padding:12px 18px}" +
     "nav.main .ck-prof.guest .ck-av{margin:0 auto 6px}" +
     "nav.main .ck-prof.guest .ck-ep{width:auto;height:auto;padding:5px 14px;font-weight:700;font-size:.78rem;margin-top:6px}" +
+    // Desktop: profile block lives in the header, next to the phone number (compact).
+    ".hactions .ck-prof{display:flex;align-items:center;gap:8px;margin:0;padding:0;border:none}" +
+    ".hactions .ck-av{width:34px;height:34px;flex:0 0 34px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:15px;background:#5E1B22;color:#E0952A;border:2px solid #E0952A;cursor:pointer}" +
+    ".hactions .ck-pi{line-height:1.15;min-width:0}" +
+    ".hactions .ck-pn{font-weight:700;font-size:.82rem;color:#5E1B22;white-space:nowrap}" +
+    ".hactions .ck-pm{font-size:.68rem;color:#7C6A55}" +
+    ".hactions .ck-ep{border:1px solid #E0952A;background:#FBF4E8;color:#5E1B22;border-radius:999px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;cursor:pointer;flex:0 0 auto}" +
+    ".hactions .ck-prof.guest .ck-pn{display:none}" +
+    ".hactions .ck-prof.guest .ck-ep{width:auto;height:auto;padding:6px 14px;font-weight:700;font-size:.78rem}" +
     "body.ck-sms-mode footer{padding-top:26px;padding-bottom:26px}" +
     "body.ck-sms-mode footer .wrap>*+*{margin-top:10px}";
 
@@ -377,9 +386,17 @@
     var ul = nav ? nav.querySelector("ul") : null;
     if (!nav || !ul) return;
     if (typeof Notification !== "undefined") st.push = Notification.permission === "granted";
-    // Profile header at the very top (above Home) — round avatar + Edit Profile.
-    var prof = nav.querySelector(".ck-prof");
-    if (!prof) { prof = document.createElement("div"); prof.className = "ck-prof"; nav.insertBefore(prof, ul); }
+    // Profile block placement: desktop -> header next to the phone (.hactions);
+    // mobile -> drawer header (nav.main, above Home).
+    var desktop = false; try { desktop = window.matchMedia("(min-width: 821px)").matches; } catch (e) {}
+    var hact = document.querySelector(".hactions");
+    var prof = document.querySelector(".ck-prof");
+    if (!prof) { prof = document.createElement("div"); prof.className = "ck-prof"; }
+    if (desktop && hact) {
+      if (prof.parentNode !== hact) hact.insertBefore(prof, hact.querySelector(".mcall"));
+    } else {
+      if (prof.parentNode !== nav) nav.insertBefore(prof, ul);
+    }
     if (st.loggedIn) {
       prof.className = "ck-prof";
       prof.innerHTML = '<div class="ck-av" data-cka="editprofile">👤</div><div class="ck-pi"><div class="ck-pn">' + esc(st.name || "User") + '</div><div class="ck-pm">+91 ' + esc(mob10()) + '</div></div><button class="ck-ep" data-cka="editprofile" aria-label="Edit Profile" title="Edit Profile">✎</button>';
@@ -416,6 +433,8 @@
     // Capture the install prompt so the drawer can offer "Add to Home Screen".
     window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); st.installPrompt = e; injectMenu(); });
     window.addEventListener("appinstalled", function () { st.installPrompt = null; injectMenu(); });
+    // Re-place the profile block (header vs drawer) when crossing the breakpoint.
+    try { var mq = window.matchMedia("(min-width: 821px)"); (mq.addEventListener ? mq.addEventListener("change", injectMenu) : mq.addListener(injectMenu)); } catch (e) {}
     ov = elem('<div id="ckov"><div id="cksheet"></div></div>');
     sheet = ov.querySelector("#cksheet");
     document.body.appendChild(ov);
