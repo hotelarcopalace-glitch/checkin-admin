@@ -81,7 +81,7 @@ export async function POST(req: Request) {
        RETURNING expires_at`,
       [token, mobile, tag, hotel, String(ttl)]
     );
-    const url = `${SITE}/l/${token}`;
+    const url = `${SITE}/l?${token}`;
     return NextResponse.json({ ok: true, url, token, mobile, expires_at: rows[0].expires_at });
   } catch (err) {
     if (typeof err === "object" && err && (err as { code?: string }).code === "42P01") {
