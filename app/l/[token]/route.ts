@@ -12,21 +12,21 @@ export const dynamic = "force-dynamic";
  */
 export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;
-  const smsUrl = new URL("/sms", req.url);
   const homeUrl = new URL("/sms?expired=1", req.url);
 
   if (!token || !hasDatabase()) return NextResponse.redirect(homeUrl);
 
-  let mobile = "";
+  let mobile = "", hotel = "";
   try {
-    const rows = await query<{ mobile: string }>(
-      `SELECT mobile FROM magic_links
+    const rows = await query<{ mobile: string; name: string | null }>(
+      `SELECT mobile, name FROM magic_links
        WHERE token = $1 AND expires_at > NOW()
        LIMIT 1`,
       [token]
     );
     if (rows.length === 0) return NextResponse.redirect(homeUrl);
     mobile = rows[0].mobile;
+    hotel = rows[0].name ?? "";
   } catch {
     return NextResponse.redirect(homeUrl);
   }
@@ -43,7 +43,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ token: string }
     /* login must not fail on an audit write */
   }
 
-  const res = NextResponse.redirect(smsUrl);
+  const dest = new URL("/welcome", req.url);
+  if (hotel) dest.searchParams.set("h", hotel);
+  const res = NextResponse.redirect(dest);
   res.cookies.set(USER_COOKIE, await createUserToken(mobile), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

@@ -83,6 +83,21 @@
     ".hactions .ck-ep{border:1px solid #E0952A;background:#FBF4E8;color:#5E1B22;border-radius:999px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;cursor:pointer;flex:0 0 auto}" +
     ".hactions .ck-prof.guest .ck-pn{display:none}" +
     ".hactions .ck-prof.guest .ck-ep{width:auto;height:auto;padding:6px 14px;font-weight:700;font-size:.78rem}" +
+    /* magic-link welcome landing */
+    "#ck-wel{max-width:440px;margin:18px auto 40px;padding:0 14px}" +
+    "#ck-wel .card{background:#FBF4E8;border:1px solid #E7D9BF;border-radius:16px;overflow:hidden}" +
+    "#ck-wel .hero{background:linear-gradient(135deg,#5E1B22,#7A2A31);color:#F1CB86;padding:26px 20px 22px;text-align:center}" +
+    "#ck-wel .chk{width:56px;height:56px;border-radius:999px;background:rgba(224,149,42,.18);border:2px solid #E0952A;display:flex;align-items:center;justify-content:center;font-size:28px;color:#E0952A;margin:0 auto 12px}" +
+    "#ck-wel .ty{font:700 1.35rem 'Fraunces',Georgia,serif;color:#fff;line-height:1.28}" +
+    "#ck-wel .mob{margin-top:14px;display:inline-flex;align-items:center;gap:7px;background:rgba(251,244,232,.14);padding:8px 15px;border-radius:999px;font-size:.9rem;color:#FBF4E8}" +
+    "#ck-wel .mob b{color:#fff}" +
+    "#ck-wel .body{padding:18px 18px 6px}" +
+    "#ck-wel .lead{font-size:.92rem;font-weight:700;color:#5E1B22;margin-bottom:13px}" +
+    "#ck-wel .it{display:flex;align-items:center;gap:11px;font-size:.94rem;color:#431016;margin-bottom:12px}" +
+    "#ck-wel .ic{width:34px;height:34px;flex:0 0 34px;border-radius:9px;background:#FBEFD8;display:flex;align-items:center;justify-content:center;font-size:17px}" +
+    "#ck-wel .acts{padding:8px 18px 22px}" +
+    "#ck-wel .allow{width:100%;background:#E0952A;color:#431016;border:none;border-radius:12px;padding:15px;font-size:1rem;font-weight:800;cursor:pointer}" +
+    "#ck-wel .skip{width:100%;background:none;color:#7C6A55;border:none;padding:12px;font-size:.9rem;font-weight:600;cursor:pointer;margin-top:2px}" +
     "body.ck-sms-mode footer{padding-top:26px;padding-bottom:26px}" +
     "body.ck-sms-mode footer .wrap>*+*{margin-top:10px}";
 
@@ -90,7 +105,7 @@
   function fmt(v) { var d = new Date(v); if (isNaN(d)) return ""; return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) + ", " + d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
   function elem(h) { var d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstChild; }
 
-  var fab, ov, sheet, marketMain, smsBox, bar;
+  var fab, ov, sheet, marketMain, smsBox, bar, welBox;
 
   function setPath(p) { try { if (location.pathname !== p) history.pushState({}, "", p); } catch (e) {} }
   function closeSiteMenu() { var h = document.querySelector("header"); if (h) h.classList.remove("nav-open"); }
@@ -202,6 +217,67 @@
     else if (a === "send") { if ((st.mobile || "").length >= 8) sendOtp(); else { st.err = "Sahi mobile number daalein."; renderLogin(); } }
     else if (a === "verify") verify();
     else if (a === "back") { st.step = "mobile"; st.code = ""; st.err = ""; renderLogin(); }
+  }
+
+  // ---- magic-link welcome landing (thank-you + notification opt-in) ----
+  function ensureWelBox() {
+    if (welBox) return;
+    if (!marketMain) marketMain = document.querySelector("main#home") || document.querySelector("main");
+    welBox = document.createElement("main");
+    welBox.id = "ck-wel";
+    welBox.hidden = true;
+    welBox.addEventListener("click", onWelClick);
+    if (marketMain && marketMain.parentNode) marketMain.parentNode.insertBefore(welBox, marketMain.nextSibling);
+    else document.body.appendChild(welBox);
+  }
+  function showWelcome(hotel) {
+    ensureWelBox();
+    st.welHotel = hotel || "";
+    if (marketMain) marketMain.hidden = true;
+    if (smsBox) smsBox.hidden = true;
+    if (bar) bar.classList.remove("on");
+    welBox.hidden = false;
+    document.body.classList.add("ck-sms-mode");
+    setPath("/welcome" + (hotel ? "?h=" + encodeURIComponent(hotel) : ""));
+    try { window.scrollTo(0, 0); } catch (e) {}
+    renderWelcome();
+    try { document.documentElement.classList.remove("ck-sms-boot"); } catch (e) {}
+  }
+  function hideWelcome() {
+    if (welBox) welBox.hidden = true;
+    document.body.classList.remove("ck-sms-mode");
+  }
+  function renderWelcome() {
+    if (!welBox) return;
+    var hotel = st.welHotel ? esc(st.welHotel) : "us";
+    var items = [
+      ["🔔", "Room rate / tariff & offers"],
+      ["🛎️", "Check-in & Check-out updates"],
+      ["🍽️", "F&B order & KOT status"],
+      ["🧾", "Bill & payment receipt"],
+      ["✨", "Har activity ka update"]
+    ];
+    var li = "";
+    items.forEach(function (x) { li += '<div class="it"><span class="ic">' + x[0] + '</span>' + esc(x[1]) + "</div>"; });
+    welBox.innerHTML =
+      '<div class="card">' +
+        '<div class="hero"><div class="chk">✓</div>' +
+          '<div class="ty">Thank you for choosing<br>' + hotel + "</div>" +
+          '<div class="mob">📱 Logged in as <b>+91 ' + esc(mob10()) + "</b></div>" +
+        "</div>" +
+        '<div class="body"><div class="lead">Aapko in sab ka notification milega:</div>' + li + "</div>" +
+        '<div class="acts">' +
+          '<button class="allow" data-a="allow">🔔 Allow Notifications</button>' +
+          '<button class="skip" data-a="skip">Skip for now</button>' +
+        "</div>" +
+      "</div>";
+  }
+  function welToSms() { hideWelcome(); showSms("messages"); }
+  function onWelClick(e) {
+    var t = e.target.closest("[data-a]"); if (!t) return;
+    var a = t.getAttribute("data-a");
+    if (a === "allow") { askPush().then(welToSms, welToSms); }
+    else if (a === "skip") welToSms();
   }
 
   // ---- in-page SMS section ----
@@ -439,6 +515,7 @@
     sheet = ov.querySelector("#cksheet");
     document.body.appendChild(ov);
     ensureSmsBox();
+    ensureWelBox();
     bar = elem('<div id="ck-bar"><button data-a="barback">← Back</button><button class="pri" data-a="home">🏠 Home</button></div>');
     document.body.appendChild(bar);
     bar.addEventListener("click", function (e) {
@@ -456,21 +533,28 @@
     var nav = document.querySelector("nav.main");
     if (nav) nav.addEventListener("click", function (e) {
       var a = e.target.closest('a[href^="#"]');
-      if (a && !a.classList.contains("ck-navitem") && smsBox && !smsBox.hidden) hideSms();
+      if (a && !a.classList.contains("ck-navitem")) {
+        if (smsBox && !smsBox.hidden) hideSms();
+        if (welBox && !welBox.hidden) { hideWelcome(); if (marketMain) marketMain.hidden = false; }
+      }
     });
     window.addEventListener("popstate", function () {
-      if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); }
-      else hideSms();
+      if (location.pathname === "/welcome") { if (st.loggedIn) { var wh = ""; try { wh = new URL(location.href).searchParams.get("h") || ""; } catch (e) {} showWelcome(wh); } }
+      else if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); }
+      else { hideWelcome(); hideSms(); }
     });
     // On a /sms deep-link, hide the marketing home immediately (before the login
     // check finishes) so the guest never sees a flash of the home page first.
     var onSmsPath = location.pathname === "/sms";
-    if (onSmsPath) {
+    var onWelPath = location.pathname === "/welcome";
+    if (onSmsPath || onWelPath) {
       if (marketMain) marketMain.hidden = true;
-      smsBox.hidden = false;
-      smsBox.innerHTML = '<div class="empty">Loading…</div>';
       document.body.classList.add("ck-sms-mode");
-      if (bar) bar.classList.add("on");
+      if (onSmsPath) {
+        smsBox.hidden = false;
+        smsBox.innerHTML = '<div class="empty">Loading…</div>';
+        if (bar) bar.classList.add("on");
+      }
       try { window.scrollTo(0, 0); } catch (e) {}
     }
     // JS now controls home visibility via marketMain.hidden — drop the first-paint guard.
@@ -480,7 +564,9 @@
       // Deep-link from a notification: /sms?hl=<created_at> highlights that SMS.
       var hlq = ""; try { hlq = new URL(location.href).searchParams.get("hl") || ""; } catch (e) {}
       if (hlq && st.loggedIn) st.hl = hlq;
-      if (onSmsPath) { if (st.loggedIn) showSms("messages"); else { hideSms(); openLogin(); } }
+      var welHotel = ""; try { welHotel = new URL(location.href).searchParams.get("h") || ""; } catch (e) {}
+      if (onWelPath) { if (st.loggedIn) showWelcome(welHotel); else { if (marketMain) marketMain.hidden = false; document.body.classList.remove("ck-sms-mode"); openLogin(); } }
+      else if (onSmsPath) { if (st.loggedIn) showSms("messages"); else { hideSms(); openLogin(); } }
       else if (!st.loggedIn && !skipped) setTimeout(openLogin, 700);
       if (st.loggedIn) {
         startPolling();

@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
       // The guest SMS-notifications view has its own URL; it renders on the same
       // page (the widget opens the SMS view when the path is /sms).
       { source: "/sms", destination: "/index.html" },
+      // Magic-link landing (thank-you + notification opt-in) — same page, the
+      // widget shows the welcome view when the path is /welcome.
+      { source: "/welcome", destination: "/index.html" },
     ];
   },
   async redirects() {
