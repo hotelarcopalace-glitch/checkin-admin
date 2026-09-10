@@ -1,7 +1,10 @@
 import { SignJWT, jwtVerify } from "jose";
 
 export const USER_COOKIE = "checkin_user";
-const DAYS = 30;
+// Effectively permanent — the guest stays logged in until they explicitly tap
+// Logout (leaving/closing the page never logs out). Browsers cap cookie age at
+// ~400 days, so 365 keeps it valid for a year and quietly renews on each visit.
+const DAYS = 365;
 
 function key() {
   const secret = process.env.SESSION_SECRET;

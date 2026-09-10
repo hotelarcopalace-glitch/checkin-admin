@@ -72,7 +72,7 @@ export async function POST(req: Request) {
   if (!Number.isFinite(ttl) || ttl <= 0) ttl = DEFAULT_TTL_MIN;
   ttl = Math.min(ttl, MAX_TTL_MIN);
 
-  const token = randomBytes(18).toString("base64url"); // ~24 url-safe chars
+  const token = randomBytes(9).toString("base64url"); // 12 url-safe chars (72-bit, unguessable) — short URL, still secure
 
   try {
     const rows = await query<{ expires_at: string }>(
