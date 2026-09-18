@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
  * Magic login link. Opening /l/<token> logs the guest in (if the token is
  * valid and unexpired) and lands them on the on-site SMS page. Invalid or
  * expired links fall through to /sms, where the normal OTP login prompt opens.
+ * Kept only for already-sent long links — the DLT-registered CTA is the bare
+ * query form /l?<token>, handled by ../route.ts.
  */
 export async function GET(req: Request, ctx: { params: Promise<{ token: string }> }) {
   const { token } = await ctx.params;

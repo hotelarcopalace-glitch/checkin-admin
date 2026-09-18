@@ -17,18 +17,23 @@ function keyOk(provided: string | null): boolean {
 }
 
 const SITE = (process.env.SITE_URL ?? "https://checkin.co.in").replace(/\/+$/, "");
-const DEFAULT_TTL_MIN = 1440; // 24h
-const MAX_TTL_MIN = 7 * 1440; // 7 days
+// 12-char token — "checkin.co.in" + "/l?" + 12 chars lands exactly at the
+// ~28-char budget DLT approved this template's variable for. The owner wants
+// links to never expire, so TTL defaults to effectively permanent (~10
+// years); at 12 chars (72-bit) that's still not brute-forceable.
+const DEFAULT_TTL_MIN = 10 * 365 * 24 * 60;
+const MAX_TTL_MIN = DEFAULT_TTL_MIN;
 
 /**
  * Mints a magic login link for a guest's mobile number and returns it as JSON.
- * checkin.exe reads the "url" field and drops it into the OTP SMS it sends.
+ * checkin.exe reads the "url" field and drops it into the OTP SMS it sends —
+ * possibly appending "&otp=NNNN" itself if its DLT template is set up for that.
  * The website does NOT send any SMS — it only creates the link.
  *
  * POST /api/magic/create
  *   auth : Authorization: Bearer <SMS_API_KEY>   (or X-API-Key)
- *   body : { "mobile": "9876500011", "hotel": "Hotel Arco Palace", "tag": "@Arco Team", "ttlMinutes": 1440 }
- *   resp : { "ok": true, "url": "https://checkin.co.in/l/AbC123...", "token": "...", "mobile": "+919876500011", "expires_at": "..." }
+ *   body : { "mobile": "9876500011", "hotel": "Hotel Arco Palace", "tag": "@Arco Team", "ttlMinutes": 20 }
+ *   resp : { "ok": true, "url": "https://checkin.co.in/l?a1B2c3D4e5F6", "token": "...", "mobile": "+919876500011", "expires_at": "..." }
  */
 export async function POST(req: Request) {
   if (!keyOk(readApiKey(req))) {
@@ -72,7 +77,7 @@ export async function POST(req: Request) {
   if (!Number.isFinite(ttl) || ttl <= 0) ttl = DEFAULT_TTL_MIN;
   ttl = Math.min(ttl, MAX_TTL_MIN);
 
-  const token = randomBytes(9).toString("base64url"); // 12 url-safe chars (72-bit, unguessable) — short URL, still secure
+  const token = randomBytes(9).toString("base64url"); // 12 url-safe chars (72-bit, unguessable)
 
   try {
     const rows = await query<{ expires_at: string }>(
@@ -81,7 +86,7 @@ export async function POST(req: Request) {
        RETURNING expires_at`,
       [token, mobile, tag, hotel, String(ttl)]
     );
-    const url = `${SITE}/l?t=${token}`;
+    const url = `${SITE}/l?${token}`;
     return NextResponse.json({ ok: true, url, token, mobile, expires_at: rows[0].expires_at });
   } catch (err) {
     if (typeof err === "object" && err && (err as { code?: string }).code === "42P01") {

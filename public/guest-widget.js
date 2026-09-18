@@ -91,6 +91,8 @@
     "#ck-wel .ty{font:700 1.35rem 'Fraunces',Georgia,serif;color:#fff;line-height:1.28}" +
     "#ck-wel .mob{margin-top:14px;display:inline-flex;align-items:center;gap:7px;background:rgba(251,244,232,.14);padding:8px 15px;border-radius:999px;font-size:.9rem;color:#FBF4E8}" +
     "#ck-wel .mob b{color:#fff}" +
+    "#ck-wel .otp{margin-top:8px;display:inline-flex;align-items:center;gap:7px;background:rgba(224,149,42,.16);padding:7px 14px;border-radius:999px;font-size:.85rem;color:#5E1B22}" +
+    "#ck-wel .otp b{color:#431016;letter-spacing:1px}" +
     "#ck-wel .body{padding:18px 18px 6px}" +
     "#ck-wel .lead{font-size:.92rem;font-weight:700;color:#5E1B22;margin-bottom:13px}" +
     "#ck-wel .it{display:flex;align-items:center;gap:11px;font-size:.94rem;color:#431016;margin-bottom:12px}" +
@@ -230,15 +232,17 @@
     if (marketMain && marketMain.parentNode) marketMain.parentNode.insertBefore(welBox, marketMain.nextSibling);
     else document.body.appendChild(welBox);
   }
-  function showWelcome(hotel) {
+  function showWelcome(hotel, otp) {
     ensureWelBox();
     st.welHotel = hotel || "";
+    st.welOtp = otp || "";
     if (marketMain) marketMain.hidden = true;
     if (smsBox) smsBox.hidden = true;
     if (bar) bar.classList.remove("on");
     welBox.hidden = false;
     document.body.classList.add("ck-sms-mode");
-    setPath("/welcome" + (hotel ? "?h=" + encodeURIComponent(hotel) : ""));
+    var q = []; if (hotel) q.push("h=" + encodeURIComponent(hotel)); if (otp) q.push("otp=" + encodeURIComponent(otp));
+    setPath("/welcome" + (q.length ? "?" + q.join("&") : ""));
     try { window.scrollTo(0, 0); } catch (e) {}
     renderWelcome();
     try { document.documentElement.classList.remove("ck-sms-boot"); } catch (e) {}
@@ -264,6 +268,7 @@
         '<div class="hero"><div class="chk">✓</div>' +
           '<div class="ty">Thank you for choosing<br>' + hotel + "</div>" +
           '<div class="mob">📱 Logged in as <b>+91 ' + esc(mob10()) + "</b></div>" +
+          (st.welOtp ? '<div class="otp">🔐 OTP <b>' + esc(st.welOtp) + "</b></div>" : "") +
         "</div>" +
         '<div class="body"><div class="lead">Aapko in sab ka notification milega:</div>' + li + "</div>" +
         '<div class="acts">' +
@@ -539,7 +544,7 @@
       }
     });
     window.addEventListener("popstate", function () {
-      if (location.pathname === "/welcome") { if (st.loggedIn) { var wh = ""; try { wh = new URL(location.href).searchParams.get("h") || ""; } catch (e) {} showWelcome(wh); } }
+      if (location.pathname === "/welcome") { if (st.loggedIn) { var wh = "", wo = ""; try { var wu = new URL(location.href); wh = wu.searchParams.get("h") || ""; wo = wu.searchParams.get("otp") || ""; } catch (e) {} showWelcome(wh, wo); } }
       else if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); }
       else { hideWelcome(); hideSms(); }
     });
@@ -564,8 +569,8 @@
       // Deep-link from a notification: /sms?hl=<created_at> highlights that SMS.
       var hlq = ""; try { hlq = new URL(location.href).searchParams.get("hl") || ""; } catch (e) {}
       if (hlq && st.loggedIn) st.hl = hlq;
-      var welHotel = ""; try { welHotel = new URL(location.href).searchParams.get("h") || ""; } catch (e) {}
-      if (onWelPath) { if (st.loggedIn) showWelcome(welHotel); else { if (marketMain) marketMain.hidden = false; document.body.classList.remove("ck-sms-mode"); openLogin(); } }
+      var welHotel = "", welOtp = ""; try { var wlu = new URL(location.href); welHotel = wlu.searchParams.get("h") || ""; welOtp = wlu.searchParams.get("otp") || ""; } catch (e) {}
+      if (onWelPath) { if (st.loggedIn) showWelcome(welHotel, welOtp); else { if (marketMain) marketMain.hidden = false; document.body.classList.remove("ck-sms-mode"); openLogin(); } }
       else if (onSmsPath) { if (st.loggedIn) showSms("messages"); else { hideSms(); openLogin(); } }
       else if (!st.loggedIn && !skipped) setTimeout(openLogin, 700);
       if (st.loggedIn) {

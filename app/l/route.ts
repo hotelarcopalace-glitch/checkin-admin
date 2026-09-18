@@ -6,18 +6,26 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Magic login link, query form: /l?<token>  (DLT requires dynamic URLs to end
- * with "?"). Also accepts /l?t=<token>. Valid token logs the guest in and lands
- * on /welcome (thank-you + notification opt-in); invalid/expired -> /sms?expired=1.
- * (The path form /l/<token> is handled by ./[token]/route.ts for older links.)
+ * Magic login link, query form: /l?<token>  — this is the exact prefix
+ * registered as the DLT "Dynamic URL" CTA, so it must stay a bare query with
+ * no "t=" key. Also still accepts /l?t=<token> for links already sent that
+ * way. checkin.exe may tack "&otp=NNNN" onto the end for display only.
+ *
+ * The bare-token case needs its own parsing: a plain URLSearchParams read
+ * would misfire on "?<token>&otp=2948" because the presence of "otp=" makes
+ * the whole query string look "keyed", even though the token itself has no
+ * "=". So: the token is whichever entry parses with an empty value (that's
+ * what a key-less "?<token>" becomes), falling back to "t"/"k" otherwise.
  */
 export async function GET(req: Request) {
   const u = new URL(req.url);
-  const raw = u.search.replace(/^\?/, "");
   let token = "";
-  if (raw && !raw.includes("=")) token = raw; // /l?<token>
-  else token = u.searchParams.get("t") || u.searchParams.get("k") || "";
-  token = decodeURIComponent((token.split("&")[0] || "").trim());
+  for (const [k, v] of u.searchParams.entries()) {
+    if (v === "") { token = k; break; } // /l?<token>[&otp=...]
+  }
+  if (!token) token = u.searchParams.get("t") || u.searchParams.get("k") || "";
+  token = decodeURIComponent(token.trim());
+  const otp = u.searchParams.get("otp") || "";
 
   const bad = new URL("/sms?expired=1", req.url);
   if (!token || !hasDatabase()) return NextResponse.redirect(bad);
@@ -46,9 +54,11 @@ export async function GET(req: Request) {
     /* login must not fail on an audit write */
   }
 
-  // Land on the welcome page (thank-you + notification opt-in), hotel name in tow.
+  // Land on the welcome page (thank-you + notification opt-in), hotel name
+  // (and the vendor's display-only OTP, if it appended one) in tow.
   const dest = new URL("/welcome", req.url);
   if (hotel) dest.searchParams.set("h", hotel);
+  if (otp) dest.searchParams.set("otp", otp);
   const res = NextResponse.redirect(dest);
   res.cookies.set(USER_COOKIE, await createUserToken(mobile), {
     httpOnly: true,
