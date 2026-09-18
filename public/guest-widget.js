@@ -93,6 +93,8 @@
     "#ck-wel .mob b{color:#fff}" +
     "#ck-wel .otp{margin-top:8px;display:inline-flex;align-items:center;gap:7px;background:rgba(224,149,42,.16);padding:7px 14px;border-radius:999px;font-size:.85rem;color:#5E1B22}" +
     "#ck-wel .otp b{color:#431016;letter-spacing:1px}" +
+    "#ck-wel .already{display:inline-block;margin-bottom:12px;background:rgba(251,244,232,.16);border:1px solid rgba(241,203,134,.5);color:#F1CB86;padding:5px 13px;border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase}" +
+    "#ck-wel .skipmsg{padding:14px 4px;text-align:center;font-size:.88rem;color:#5E1B22;font-weight:600}" +
     "#ck-wel .body{padding:18px 18px 6px}" +
     "#ck-wel .lead{font-size:.92rem;font-weight:700;color:#5E1B22;margin-bottom:13px}" +
     "#ck-wel .it{display:flex;align-items:center;gap:11px;font-size:.94rem;color:#431016;margin-bottom:12px}" +
@@ -232,16 +234,17 @@
     if (marketMain && marketMain.parentNode) marketMain.parentNode.insertBefore(welBox, marketMain.nextSibling);
     else document.body.appendChild(welBox);
   }
-  function showWelcome(hotel, otp) {
+  function showWelcome(hotel, otp, already) {
     ensureWelBox();
     st.welHotel = hotel || "";
     st.welOtp = otp || "";
+    st.welAlready = !!already;
     if (marketMain) marketMain.hidden = true;
     if (smsBox) smsBox.hidden = true;
     if (bar) bar.classList.remove("on");
     welBox.hidden = false;
     document.body.classList.add("ck-sms-mode");
-    var q = []; if (hotel) q.push("h=" + encodeURIComponent(hotel)); if (otp) q.push("otp=" + encodeURIComponent(otp));
+    var q = []; if (hotel) q.push("h=" + encodeURIComponent(hotel)); if (otp) q.push("otp=" + encodeURIComponent(otp)); if (already) q.push("already=1");
     setPath("/welcome" + (q.length ? "?" + q.join("&") : ""));
     try { window.scrollTo(0, 0); } catch (e) {}
     renderWelcome();
@@ -265,7 +268,9 @@
     items.forEach(function (x) { li += '<div class="it"><span class="ic">' + x[0] + '</span>' + esc(x[1]) + "</div>"; });
     welBox.innerHTML =
       '<div class="card">' +
-        '<div class="hero"><div class="chk">✓</div>' +
+        '<div class="hero">' +
+          (st.welAlready ? '<div class="already">Already logged in</div>' : "") +
+          '<div class="chk">✓</div>' +
           '<div class="ty">Thank you for choosing<br>' + hotel + "</div>" +
           '<div class="mob">📱 Logged in as <b>+91 ' + esc(mob10()) + "</b></div>" +
           (st.welOtp ? '<div class="otp">🔐 OTP <b>' + esc(st.welOtp) + "</b></div>" : "") +
@@ -282,7 +287,11 @@
     var t = e.target.closest("[data-a]"); if (!t) return;
     var a = t.getAttribute("data-a");
     if (a === "allow") { askPush().then(welToSms, welToSms); }
-    else if (a === "skip") welToSms();
+    else if (a === "skip") {
+      var acts = welBox && welBox.querySelector(".acts");
+      if (acts) acts.innerHTML = '<div class="skipmsg">Aapne skip kar diya hai — ab is number par koi notification nahi aayega.</div>';
+      setTimeout(welToSms, 1500);
+    }
   }
 
   // ---- in-page SMS section ----
@@ -544,7 +553,7 @@
       }
     });
     window.addEventListener("popstate", function () {
-      if (location.pathname === "/welcome") { if (st.loggedIn) { var wh = "", wo = ""; try { var wu = new URL(location.href); wh = wu.searchParams.get("h") || ""; wo = wu.searchParams.get("otp") || ""; } catch (e) {} showWelcome(wh, wo); } }
+      if (location.pathname === "/welcome") { if (st.loggedIn) { var wh = "", wo = "", wa = ""; try { var wu = new URL(location.href); wh = wu.searchParams.get("h") || ""; wo = wu.searchParams.get("otp") || ""; wa = wu.searchParams.get("already") || ""; } catch (e) {} showWelcome(wh, wo, wa === "1"); } }
       else if (location.pathname === "/sms") { if (st.loggedIn) showSms("messages"); }
       else { hideWelcome(); hideSms(); }
     });
@@ -569,8 +578,8 @@
       // Deep-link from a notification: /sms?hl=<created_at> highlights that SMS.
       var hlq = ""; try { hlq = new URL(location.href).searchParams.get("hl") || ""; } catch (e) {}
       if (hlq && st.loggedIn) st.hl = hlq;
-      var welHotel = "", welOtp = ""; try { var wlu = new URL(location.href); welHotel = wlu.searchParams.get("h") || ""; welOtp = wlu.searchParams.get("otp") || ""; } catch (e) {}
-      if (onWelPath) { if (st.loggedIn) showWelcome(welHotel, welOtp); else { if (marketMain) marketMain.hidden = false; document.body.classList.remove("ck-sms-mode"); openLogin(); } }
+      var welHotel = "", welOtp = "", welAlready = ""; try { var wlu = new URL(location.href); welHotel = wlu.searchParams.get("h") || ""; welOtp = wlu.searchParams.get("otp") || ""; welAlready = wlu.searchParams.get("already") || ""; } catch (e) {}
+      if (onWelPath) { if (st.loggedIn) showWelcome(welHotel, welOtp, welAlready === "1"); else { if (marketMain) marketMain.hidden = false; document.body.classList.remove("ck-sms-mode"); openLogin(); } }
       else if (onSmsPath) { if (st.loggedIn) showSms("messages"); else { hideSms(); openLogin(); } }
       else if (!st.loggedIn && !skipped) setTimeout(openLogin, 700);
       if (st.loggedIn) {

@@ -30,15 +30,16 @@ export async function GET(req: Request) {
   const bad = new URL("/sms?expired=1", req.url);
   if (!token || !hasDatabase()) return NextResponse.redirect(bad);
 
-  let mobile = "", hotel = "";
+  let mobile = "", hotel = "", already = false;
   try {
-    const rows = await query<{ mobile: string; name: string | null }>(
-      `SELECT mobile, name FROM magic_links WHERE token = $1 AND expires_at > NOW() LIMIT 1`,
+    const rows = await query<{ mobile: string; name: string | null; used_at: string | null }>(
+      `SELECT mobile, name, used_at FROM magic_links WHERE token = $1 AND expires_at > NOW() LIMIT 1`,
       [token]
     );
     if (rows.length === 0) return NextResponse.redirect(bad);
     mobile = rows[0].mobile;
     hotel = rows[0].name ?? "";
+    already = rows[0].used_at !== null; // this exact link was opened before
   } catch {
     return NextResponse.redirect(bad);
   }
@@ -59,6 +60,7 @@ export async function GET(req: Request) {
   const dest = new URL("/welcome", req.url);
   if (hotel) dest.searchParams.set("h", hotel);
   if (otp) dest.searchParams.set("otp", otp);
+  if (already) dest.searchParams.set("already", "1");
   const res = NextResponse.redirect(dest);
   res.cookies.set(USER_COOKIE, await createUserToken(mobile), {
     httpOnly: true,
