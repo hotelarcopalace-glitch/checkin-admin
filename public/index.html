@@ -509,7 +509,7 @@
     var cur=null,tick=false;
     function spy(){
       tick=false;
-      if(location.pathname==='/sms')return;
+      if(location.pathname==='/sms'||location.pathname==='/welcome')return;
       var best='';
       if(window.scrollY>30){
         for(var i=0;i<ids.length;i++){
