@@ -17,6 +17,18 @@ function keyOk(provided: string | null): boolean {
 }
 
 const SITE = (process.env.SITE_URL ?? "https://checkin.co.in").replace(/\/+$/, "");
+
+/** "tag" is free text like "@Arco Team" — whatever follows the "@" is the
+ *  hotel's display name. No "@" (or no tag at all) means we don't know the
+ *  hotel, so the welcome page falls back to showing the guest's own number. */
+function hotelFromTag(tag: string | null): string | null {
+  if (!tag) return null;
+  const at = tag.indexOf("@");
+  if (at === -1) return null;
+  const name = tag.slice(at + 1).trim();
+  return name || null;
+}
+
 // 12-char token — "checkin.co.in" + "/l?" + 12 chars lands exactly at the
 // ~28-char budget DLT approved this template's variable for. The owner wants
 // links to never expire, so TTL defaults to effectively permanent (~10
@@ -70,8 +82,8 @@ export async function POST(req: Request) {
   const mobile = normaliseMobile(rawMobile);
   if (!mobile) return NextResponse.json({ ok: false, error: "mobile is not a valid number" }, { status: 400 });
 
-  const hotel = pick(["hotel", "hotelName", "hotel_name", "name"]);
   const tag = pick(["tag", "sms_tag", "hotelTag"]);
+  const hotel = pick(["hotel", "hotelName", "hotel_name", "name"]) || hotelFromTag(tag);
 
   let ttl = Number(pick(["ttlMinutes", "ttl", "ttl_minutes"]) ?? DEFAULT_TTL_MIN);
   if (!Number.isFinite(ttl) || ttl <= 0) ttl = DEFAULT_TTL_MIN;

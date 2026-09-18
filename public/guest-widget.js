@@ -253,7 +253,7 @@
   }
   function renderWelcome() {
     if (!welBox) return;
-    var hotel = st.welHotel ? esc(st.welHotel) : "us";
+    var hotel = st.welHotel ? esc(st.welHotel) : ("+91 " + esc(mob10())); // no hotel tag on this link — show the guest's own number instead
     var items = [
       ["🔔", "Room rate / tariff & offers"],
       ["🛎️", "Check-in & Check-out updates"],
