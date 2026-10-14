@@ -37,19 +37,19 @@
     ".ckinfo{background:#FBF4E8;color:#7a4d0a;border:1px solid #F1CB86;border-radius:10px;padding:8px 12px;font-size:14px;margin-top:10px}" +
     ".cklbl{font-size:13px;font-weight:700;color:#5E1B22;margin:14px 2px 6px}" +
     /* auto-shown "install this app" banner, top of page */
-    "#ck-install{position:fixed;inset:0;z-index:1300;display:flex;align-items:flex-end;justify-content:center;padding:14px;background:rgba(20,6,8,.62)}" +
+    "#ck-install,#ck-push{position:fixed;inset:0;z-index:1300;display:flex;align-items:flex-end;justify-content:center;padding:14px;background:rgba(20,6,8,.62)}" +
     "#ck-upd{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:1500;display:flex;align-items:center;gap:9px;background:#1f1517;color:#fff;font-size:13px;padding:9px 16px;border-radius:999px;box-shadow:0 8px 24px rgba(0,0,0,.3);max-width:calc(100vw - 24px);white-space:nowrap;animation:ckupd .25s ease}" +
     "#ck-upd i{width:8px;height:8px;border-radius:50%;background:#4ade80;flex:none}" +
     "@keyframes ckupd{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}" +
-    "#ck-install[hidden]{display:none}" +
-    "#ck-install .box{position:relative;width:100%;max-width:400px;background:#fff;color:#2A1417;border-radius:22px;padding:0 20px 16px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.4)}" +
-    "#ck-install img{width:64px;height:64px;border-radius:17px;margin:-32px auto 12px;display:block;border:3px solid #fff;box-shadow:0 8px 20px rgba(67,16,22,.35)}" +
-    "#ck-install h3{font-size:1.2rem;margin:0 0 6px;color:#5E1B22;font-weight:800}" +
-    "#ck-install p{font-size:.86rem;line-height:1.45;color:#6b5a52;margin:0 0 16px}" +
-    "#ck-install .btns{display:flex;gap:10px}" +
-    "#ck-install .btns button{flex:1;border:none;border-radius:12px;padding:13px 10px;font-weight:700;font-size:.92rem;cursor:pointer}" +
-    "#ck-install .go{background:#E0952A;color:#431016}" +
-    "#ck-install .skip{background:#F4ECE0;color:#6b5a52}" +
+    "#ck-install[hidden],#ck-push[hidden]{display:none}" +
+    "#ck-install .box,#ck-push .box{position:relative;width:100%;max-width:400px;background:#fff;color:#2A1417;border-radius:22px;padding:0 20px 16px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.4)}" +
+    "#ck-install img,#ck-push img{width:64px;height:64px;border-radius:17px;margin:-32px auto 12px;display:block;border:3px solid #fff;box-shadow:0 8px 20px rgba(67,16,22,.35)}" +
+    "#ck-install h3,#ck-push h3{font-size:1.2rem;margin:0 0 6px;color:#5E1B22;font-weight:800}" +
+    "#ck-install p,#ck-push p{font-size:.86rem;line-height:1.45;color:#6b5a52;margin:0 0 16px}" +
+    "#ck-install .btns,#ck-push .btns{display:flex;gap:10px}" +
+    "#ck-install .btns button,#ck-push .btns button{flex:1;border:none;border-radius:12px;padding:13px 10px;font-weight:700;font-size:.92rem;cursor:pointer}" +
+    "#ck-install .go,#ck-push .go{background:#E0952A;color:#431016}" +
+    "#ck-install .skip,#ck-push .skip{background:#F4ECE0;color:#6b5a52}" +
     /* in-page SMS section */
     "#ck-sms{max-width:760px;margin:0 auto;padding:0 16px 84px;min-height:60vh}" +
     "#ck-bar{position:fixed;bottom:0;left:0;right:0;z-index:800;display:none;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid #E7D9BF;box-shadow:0 -4px 16px rgba(67,16,22,.08)}" +
@@ -251,6 +251,7 @@
       if (typeof Notification !== "undefined" && Notification.permission === "granted") askPush();
       else startPolling();
       setTimeout(showInstallPrompt, 600);
+      setTimeout(autoAskPush, 900);
     } catch (e) { st.err = "Network error."; st.busy = false; renderLogin(); }
   }
   // Password login — the fallback when OTP delivery isn't available. Same
@@ -265,6 +266,7 @@
       if (typeof Notification !== "undefined" && Notification.permission === "granted") askPush();
       else startPolling();
       setTimeout(showInstallPrompt, 600);
+      setTimeout(autoAskPush, 900);
     } catch (e) { st.err = "Network error."; st.busy = false; renderLogin(); }
   }
   async function logout() {
@@ -670,6 +672,40 @@
   var installBox;
   // Asked once right after a login; "No" is remembered for two weeks.
   function installAsked() { try { var t = +localStorage.getItem("ck_install_no") || 0; return Date.now() - t < 14 * 864e5; } catch (e) { return false; } }
+  // "Notifications on by default" for the installed app. Browsers never switch them on
+  // silently, so the closest thing is to ask the moment the installed app opens (and after
+  // login). iPhone only allows the prompt from a tap, so there it is a one-tap sheet.
+  function inInstalledApp() {
+    try { return window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch (e) { return false; }
+  }
+  function pushAskedRecently() { try { return Date.now() - (+localStorage.getItem("ck_push_asked") || 0) < 7 * 864e5; } catch (e) { return false; } }
+  var pushBox;
+  function showPushSheet() {
+    if (pushBox && !pushBox.hidden) return;
+    if (!pushBox) {
+      pushBox = elem('<div id="ck-push"><div class="box"><img src="/icon-192.png" alt=""><h3>Turn on notifications?</h3><p>Get new SMS alerts on this phone, even when the app is closed.</p><div class="btns"><button class="skip" data-a="no">Not now</button><button class="go" data-a="yes">Turn on</button></div></div></div>');
+      pushBox.addEventListener("click", function (e) {
+        var t = e.target.closest("[data-a]");
+        if (!t) { if (e.target === pushBox) pushBox.hidden = true; return; }
+        pushBox.hidden = true;
+        if (t.getAttribute("data-a") === "yes") askPush(); // this tap is the gesture iPhone needs
+      });
+      document.body.appendChild(pushBox);
+    }
+    pushBox.hidden = false;
+  }
+  function autoAskPush() {
+    if (!st.loggedIn || !inInstalledApp() || typeof Notification === "undefined") return;
+    if (Notification.permission !== "default" || pushAskedRecently()) return;
+    try { localStorage.setItem("ck_push_asked", String(Date.now())); } catch (e) {}
+    if (isIOS()) { showPushSheet(); return; }
+    var t0 = Date.now();
+    askPush().then(function () {
+      // Answered in well under a second with no choice made = the browser refused to show
+      // the prompt without a tap, so offer our own button instead.
+      if (Notification.permission === "default" && Date.now() - t0 < 700) showPushSheet();
+    });
+  }
   function showInstallPrompt() {
     if (isStandalone() || installAsked() || (installBox && !installBox.hidden)) return;
     if (!st.installPrompt && !isIOS()) return; // no install path on this browser
@@ -875,6 +911,7 @@
         // falls back to startPolling() itself if FCM isn't actually available.
         if (typeof Notification !== "undefined" && Notification.permission === "granted") askPush();
         else startPolling();
+        if (!onWelPath) setTimeout(autoAskPush, 1500); // /welcome has its own Allow button
       }
     });
   }
