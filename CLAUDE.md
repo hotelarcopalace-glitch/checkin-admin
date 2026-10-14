@@ -23,26 +23,31 @@ already a MySQL error page when the snapshot was taken.
 
 | What | Where |
 | --- | --- |
-| Site | https://checkin.co.in — admin at `/admin` |
-| Fallback | https://checkin-admin-ten.vercel.app |
-| Repo | https://github.com/hotelarcopalace-glitch/checkin-admin (private) |
-| Vercel project | `checkin-admin` in scope `hotelarcopalace-glitchs-projects` |
+| Site | https://checkin.co.in — admin at `/mng-x7k9` (`/admin` just redirects home) |
+| Fallback | https://checkin-admin-cs.netlify.app |
+| Repo | https://github.com/checkinsoftware/checkin-admin (**private**, standalone, no longer a fork) |
+| Netlify project | `checkin-admin-cs`, team Checkinwebsite, Pro plan |
 
-Admin username is `admin`. The password is only in `.env.local` (never committed) and
-in the Vercel env vars as a scrypt hash. Lost it? Run `npm run gen:admin` and update
-`ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` in Vercel, then redeploy.
+Hosting moved from Vercel to Netlify on 30 Sep 2026 (the Vercel projects are gone).
+Admin username is `admin`. The password is in the gitignored `CREDENTIALS-NEW-SETUP.txt`
+and in Netlify env vars as a scrypt hash. Lost it? Run `npm run gen:admin` and update
+`ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` in Netlify, then redeploy.
 
 ## Infrastructure
 
-- **Hosting:** Vercel, auto-deploys on every push to `main`. The Vercel CLI is logged in
-  on the owner's Mac, so `vercel env`, `vercel redeploy`, `vercel domains` all work.
-- **Database:** Neon Postgres, resource `neon-citrine-tree`, free plan, Singapore region,
-  provisioned through the Vercel marketplace. It injects `DATABASE_URL` automatically —
-  **never set that variable by hand.**
+- **Hosting:** Netlify. The site is linked to the GitHub repo (14 Oct 2026), so a push to
+  `main` should deploy by itself; the fallback is `netlify deploy --prod` with a personal
+  access token (`NETLIFY_AUTH_TOKEN`). Tokens expire (7 days by default): "Unauthorized"
+  from the CLI means make a new one under User settings > Applications. After any
+  schema change run `POST /api/admin/db-setup` once from an admin session.
+  `npm run build` first runs `scripts/stamp-build.mjs`, which writes `public/build-info.json`
+  (drives the "Updated" toast on the site and admin).
+- **Database:** Netlify's own Postgres extension (`@netlify/database`); the URL reaches the
+  app as `NETLIFY_DB_URL` (lib/db.ts also accepts `DATABASE_URL`). **Never set it by hand.**
 - **Domain:** checkin.co.in is registered at **GoDaddy** (nameservers `domaincontrol.com`).
   There is no GoDaddy API access here; DNS edits are manual, done by the owner.
-  Current records: `A @ → 64.29.17.1`, `CNAME www → 8e06b7d491dac3d9.vercel-dns-017.com`.
-  SSL is Let's Encrypt, issued and renewed by Vercel.
+  The records were repointed from Vercel to Netlify on 30 Sep 2026; check GoDaddy for the
+  exact current values. SSL is Let's Encrypt, issued and renewed by Netlify.
 - The owner also has a **Hostinger** account (arcoautozone.in/.com, carspareparts.co.in,
   and a KVM 2 VPS running WordPress). Unrelated to this project — do not touch it.
 
