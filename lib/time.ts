@@ -1,3 +1,4 @@
+// All guest and admin timestamps are shown in Indian Standard Time.
 const IST = "Asia/Kolkata";
 
 function parts(d: Date, opts: Intl.DateTimeFormatOptions) {
