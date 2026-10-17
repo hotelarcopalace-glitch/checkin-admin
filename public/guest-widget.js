@@ -840,7 +840,9 @@
       document.body.classList.toggle("ck-stuck", window.scrollY > 30);
     }, { passive: true });
     // Capture the install prompt for the hero button, the menu entry and the post-login popup.
-    window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); st.installPrompt = e; injectMenu(); });
+    // The browser only offers this when the app is NOT installed, so it also cancels a stale
+    // "already installed" memory (e.g. the guest uninstalled the app from their phone).
+    window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); st.installPrompt = e; try { localStorage.removeItem("ck_installed"); } catch (x) {} injectMenu(); });
     window.addEventListener("appinstalled", function () { markInstalled(); st.installPrompt = null; injectMenu(); hideInstallPrompt(false); });
     // Re-place the profile block (header vs drawer) when crossing the breakpoint.
     try { var mq = window.matchMedia("(min-width: 821px)"); (mq.addEventListener ? mq.addEventListener("change", injectMenu) : mq.addListener(injectMenu)); } catch (e) {}
