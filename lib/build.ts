@@ -5,7 +5,7 @@ import { verifyPassword, hashPassword } from "@/lib/password";
 // strings, dates as "YYYY-MM-DD" — so the client never deals with pg's raw
 // NUMERIC-as-string or Date objects.
 
-export type BuildProject = { id: string; name: string; client: string };
+export type BuildProject = { id: string; name: string; client: string; value: number | null };
 export type BuildKind = "IN" | "MAT" | "LAB";
 export type BuildEntry = {
   id: string;
@@ -57,26 +57,57 @@ export async function changeBuildPassword(
   return "ok";
 }
 
+const PROJECT_COLS = "id::text AS id, name, COALESCE(client,'') AS client, estimated_value::float8 AS value";
+// Same shape before db-setup has added estimated_value, so projects still load meanwhile.
+const PROJECT_COLS_OLD = "id::text AS id, name, COALESCE(client,'') AS client, NULL::float8 AS value";
+const noValueColumn = (err: unknown) => (err as { code?: string }).code === "42703";
+
 export async function listProjects(): Promise<BuildProject[]> {
-  return query<BuildProject>(
-    "SELECT id::text AS id, name, COALESCE(client,'') AS client FROM build_projects WHERE NOT archived ORDER BY created_at ASC"
-  );
+  const sql = (cols: string) => `SELECT ${cols} FROM build_projects WHERE NOT archived ORDER BY created_at ASC`;
+  try {
+    return await query<BuildProject>(sql(PROJECT_COLS));
+  } catch (err) {
+    if (!noValueColumn(err)) throw err;
+    return query<BuildProject>(sql(PROJECT_COLS_OLD));
+  }
 }
 
-export async function createProject(name: string, client: string): Promise<BuildProject> {
-  const rows = await query<BuildProject>(
-    "INSERT INTO build_projects (name, client) VALUES ($1, $2) RETURNING id::text AS id, name, COALESCE(client,'') AS client",
-    [name.trim().slice(0, 120), client.trim().slice(0, 120) || null]
-  );
-  return rows[0];
+export async function createProject(name: string, client: string, value: number | null): Promise<BuildProject> {
+  const n = name.trim().slice(0, 120);
+  const c = client.trim().slice(0, 120) || null;
+  try {
+    const rows = await query<BuildProject>(
+      `INSERT INTO build_projects (name, client, estimated_value) VALUES ($1, $2, $3) RETURNING ${PROJECT_COLS}`,
+      [n, c, value]
+    );
+    return rows[0];
+  } catch (err) {
+    if (!noValueColumn(err)) throw err;
+    const rows = await query<BuildProject>(
+      `INSERT INTO build_projects (name, client) VALUES ($1, $2) RETURNING ${PROJECT_COLS_OLD}`,
+      [n, c]
+    );
+    return rows[0];
+  }
 }
 
-export async function updateProject(id: string, name: string, client: string): Promise<BuildProject | null> {
-  const rows = await query<BuildProject>(
-    "UPDATE build_projects SET name=$2, client=$3 WHERE id=$1 RETURNING id::text AS id, name, COALESCE(client,'') AS client",
-    [id, name.trim().slice(0, 120), client.trim().slice(0, 120) || null]
-  );
-  return rows[0] ?? null;
+export async function updateProject(id: string, name: string, client: string, value: number | null): Promise<BuildProject | null> {
+  const n = name.trim().slice(0, 120);
+  const c = client.trim().slice(0, 120) || null;
+  try {
+    const rows = await query<BuildProject>(
+      `UPDATE build_projects SET name=$2, client=$3, estimated_value=$4 WHERE id=$1 RETURNING ${PROJECT_COLS}`,
+      [id, n, c, value]
+    );
+    return rows[0] ?? null;
+  } catch (err) {
+    if (!noValueColumn(err)) throw err;
+    const rows = await query<BuildProject>(
+      `UPDATE build_projects SET name=$2, client=$3 WHERE id=$1 RETURNING ${PROJECT_COLS_OLD}`,
+      [id, n, c]
+    );
+    return rows[0] ?? null;
+  }
 }
 
 // Hard delete — build_entries has ON DELETE CASCADE, so the project's entries

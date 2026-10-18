@@ -182,3 +182,6 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   count    INT         NOT NULL,
   reset_at TIMESTAMPTZ NOT NULL
 );
+
+-- Estimated total value of a BuildKhata project; drives the received % and expense % figures.
+ALTER TABLE build_projects ADD COLUMN IF NOT EXISTS estimated_value NUMERIC(14,2);

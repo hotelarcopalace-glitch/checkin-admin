@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
-type Project = { id: string; name: string; client: string };
+type Project = { id: string; name: string; client: string; value: number | null };
 type Kind = "IN" | "MAT" | "LAB";
 type Entry = {
   id: string;
@@ -41,6 +41,17 @@ function totals(list: Entry[]) {
     else lab += e.amount;
   }
   return { inn, mat, lab, exp: mat + lab, bal: inn - mat - lab };
+}
+// Received / expense measured against the project's estimated value.
+type ValueStats = { value: number; inn: number; mat: number; lab: number; exp: number; partial?: string };
+function valueStats(value: number | null | undefined, t: ReturnType<typeof totals>, partial?: string): ValueStats | null {
+  if (!value || value <= 0) return null;
+  return { value, inn: t.inn, mat: t.mat, lab: t.lab, exp: t.exp, partial };
+}
+function pctOf(n: number, of: number) {
+  if (!of) return 0;
+  const p = (n / of) * 100;
+  return p > 0 && p < 1 ? 1 : Math.round(p);
 }
 function byCat(list: Entry[], kind: Kind): [string, number][] {
   const m: Record<string, number> = {};
@@ -127,7 +138,7 @@ export default function BuildApp({ meName }: { meName: string }) {
             <ProjectsView projects={projects} entries={entries} entriesOf={entriesOf} open={(id) => setView({ name: "project", id })} newProject={() => setSheet({ kind: "project" })} />
           )}
           {view.name === "project" && (
-            <ProjectView project={projects.find((p) => p.id === view.id)} list={entriesOf(view.id)} openEntry={(type, editId) => setSheet({ kind: "entry", type, projectId: view.id, editId })} />
+            <ProjectView project={projects.find((p) => p.id === view.id)} list={entriesOf(view.id)} openEntry={(type, editId) => setSheet({ kind: "entry", type, projectId: view.id, editId })} editProject={() => setSheet({ kind: "editProject", id: view.id })} />
           )}
           {view.name === "report" && (
             <ReportView projects={projects} entries={entries} pid={view.pid || ""} setPid={(pid) => setView({ name: "report", pid })} entriesOf={entriesOf} />
@@ -196,7 +207,45 @@ function Header({ view, setView, meName, openUser, projects, editProject }: { vi
   );
 }
 
-function Hero({ label, bal, inn, exp, mat, lab }: { label: string; bal: number; inn: number; exp: number; mat?: number; lab?: number }) {
+function ValueBlock({ vs, onEdit }: { vs: ValueStats; onEdit?: () => void }) {
+  const recP = pctOf(vs.inn, vs.value);
+  const expP = pctOf(vs.exp, vs.value);
+  const matP = pctOf(vs.mat, vs.value);
+  const labP = pctOf(vs.lab, vs.value);
+  const over = vs.exp > vs.value;
+  const left = vs.value - vs.exp;
+  // Bar segments: share of the project value, or of the expense once it overshoots the value.
+  const base = over ? vs.exp : vs.value;
+  const matW = Math.min(100, base ? (vs.mat / base) * 100 : 0);
+  const labW = Math.min(100 - matW, base ? (vs.lab / base) * 100 : 0);
+  return (
+    <div className="vblock">
+      <div className="pvrow">
+        <div><div className="k">Project value</div><div className="v tnum">{money(vs.value)}</div></div>
+        {onEdit && <button className="lnk" onClick={onEdit}>Edit</button>}
+      </div>
+      <div className="meter in">
+        <div className="mrow"><span className="mt">Payment received</span><span className="mp">{recP}%</span></div>
+        <div className="mrow"><span className="ma tnum">{money(vs.inn)}</span><span className="mo">of {money(vs.value)}</span></div>
+        <div className="mbar"><i style={{ width: Math.min(100, recP) + "%" }} /></div>
+        <div className="msub"><span>Still to receive</span><b className="tnum">{money(Math.max(0, vs.value - vs.inn))} · {Math.max(0, 100 - recP)}%</b></div>
+      </div>
+      <div className={"meter out" + (over ? " over" : "")}>
+        <div className="mrow"><span className="mt">Total expense</span><span className="mp">{expP}%</span></div>
+        <div className="mrow"><span className="ma tnum">{money(vs.exp)}</span><span className="mo">of {money(vs.value)}</span></div>
+        <div className="mbar"><i className="mat" style={{ width: matW + "%" }} /><i className="lab" style={{ width: labW + "%" }} /></div>
+        <div className="msub">
+          <span><span className="dot mat" />Material {money(vs.mat)} · {matP}%</span>
+          <span><span className="dot lab" />Labour {money(vs.lab)} · {labP}%</span>
+        </div>
+      </div>
+      <div className="profit"><span>{left >= 0 ? "Profit left (value − expense)" : "Over by (expense − value)"}</span><b className="tnum" style={{ color: left >= 0 ? "var(--in)" : "var(--out)" }}>{money(Math.abs(left))}</b></div>
+      {vs.partial && <div className="vnote">{vs.partial}</div>}
+    </div>
+  );
+}
+
+function Hero({ label, bal, inn, exp, mat, lab, vs, onEditValue, needsValue }: { label: string; bal: number; inn: number; exp: number; mat?: number; lab?: number; vs?: ValueStats | null; onEditValue?: () => void; needsValue?: boolean }) {
   return (
     <div className="hero">
       <div className="lab">{label}</div>
@@ -208,6 +257,14 @@ function Hero({ label, bal, inn, exp, mat, lab }: { label: string; bal: number; 
       {mat !== undefined && (
         <div className="split" style={{ marginTop: 9 }}>
           <span>📦 Material {money(mat)}</span><span>👷 Labour {money(lab || 0)}</span>
+        </div>
+      )}
+      {vs && <ValueBlock vs={vs} onEdit={onEditValue} />}
+      {!vs && needsValue && onEditValue && (
+        <div className="setv">
+          <b>Add the project value</b>
+          <span>to see received and expense as a percentage of it</span>
+          <button className="pill" onClick={onEditValue}>Set project value</button>
         </div>
       )}
     </div>
@@ -269,9 +326,20 @@ function ProjectsView({ projects, entries, entriesOf, open, newProject }: { proj
         <div className="card">
           {projects.map((p) => {
             const t = totals(entriesOf(p.id));
+            const recP = p.value ? pctOf(t.inn, p.value) : 0;
+            const expP = p.value ? pctOf(t.exp, p.value) : 0;
             return (
               <button key={p.id} className="pcard" onClick={() => open(p.id)}>
-                <div><div className="nm">{p.name}</div><div className="cl">{p.client}</div></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="nm">{p.name}</div>
+                  <div className="cl">{p.client}</div>
+                  {p.value ? (
+                    <div className="pmini">
+                      <div className="pm"><span>Received {recP}%</span><div className="mb"><i className="in" style={{ width: Math.min(100, recP) + "%" }} /></div></div>
+                      <div className="pm"><span>Expense {expP}%</span><div className="mb"><i className={"out" + (expP > 100 ? " over" : "")} style={{ width: Math.min(100, expP) + "%" }} /></div></div>
+                    </div>
+                  ) : null}
+                </div>
                 <div className="bal"><div className="b tnum" style={{ color: t.bal >= 0 ? "var(--in)" : "var(--out)" }}>{money(t.bal)}</div><div className="t">balance</div></div>
               </button>
             );
@@ -284,12 +352,12 @@ function ProjectsView({ projects, entries, entriesOf, open, newProject }: { proj
   );
 }
 
-function ProjectView({ project, list, openEntry }: { project?: Project; list: Entry[]; openEntry: (type: Kind, editId?: string) => void }) {
+function ProjectView({ project, list, openEntry, editProject }: { project?: Project; list: Entry[]; openEntry: (type: Kind, editId?: string) => void; editProject: () => void }) {
   const sorted = [...list].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   const t = totals(list);
   return (
     <>
-      <Hero label="Balance · received − expense" bal={t.bal} inn={t.inn} exp={t.exp} mat={t.mat} lab={t.lab} />
+      <Hero label="Balance · received − expense" bal={t.bal} inn={t.inn} exp={t.exp} mat={t.mat} lab={t.lab} vs={valueStats(project?.value, t)} onEditValue={editProject} needsValue />
       <div className="acts">
         <button className="act in" onClick={() => openEntry("IN")}><span className="ic">＋</span>Payment</button>
         <button className="act mat" onClick={() => openEntry("MAT")}><span className="ic">＋</span>Purchase</button>
@@ -323,6 +391,12 @@ function ReportView({ projects, entries, pid, setPid, entriesOf }: { projects: P
   for (const e of list) { um[e.user] = um[e.user] || { inn: 0, exp: 0 }; if (e.kind === "IN") um[e.user].inn += e.amount; else um[e.user].exp += e.amount; }
   const urows = Object.entries(um).sort((a, b) => (b[1].inn + b[1].exp) - (a[1].inn + a[1].exp));
 
+  // Value figures: one project -> its value; all projects -> only those that have a value set.
+  const valProjects = pid ? projects.filter((p) => p.id === pid && p.value) : projects.filter((p) => p.value);
+  const valIds = new Set(valProjects.map((p) => p.id));
+  const valTotals = totals(list.filter((e) => valIds.has(e.projectId)));
+  const valSum = valProjects.reduce((a, p) => a + (p.value || 0), 0);
+  const vs = valueStats(valSum, valTotals, !pid && valProjects.length < projects.length ? `Counts only the ${valProjects.length} of ${projects.length} projects that have a value set.` : undefined);
   const scopeName = pid ? (projName[pid] || "Project") : "All projects";
   const rangeText = from || to ? `${from ? fmtDate(from) : "start"} – ${to ? fmtDate(to) : "today"}` : "All dates";
 
@@ -343,6 +417,12 @@ function ReportView({ projects, entries, pid, setPid, entriesOf }: { projects: P
     lines.push(["", "", "", "", "Received", t.inn].join(","));
     lines.push(["", "", "", "", "Expense", t.exp].join(","));
     lines.push(["", "", "", "", "Balance", t.bal].join(","));
+    if (vs) {
+      lines.push(["", "", "", "", "Project value", vs.value].join(","));
+      lines.push(["", "", "", "", "Received % of value", pctOf(vs.inn, vs.value) + "%"].join(","));
+      lines.push(["", "", "", "", "Expense % of value", pctOf(vs.exp, vs.value) + "%"].join(","));
+      lines.push(["", "", "", "", "Profit left (value - expense)", vs.value - vs.exp].join(","));
+    }
     downloadText(`BuildKhata_${scopeName.replace(/[^\w]+/g, "_")}.csv`, lines.join("\n"));
   }
 
@@ -365,7 +445,7 @@ function ReportView({ projects, entries, pid, setPid, entriesOf }: { projects: P
           <button className="pill" onClick={() => quick("all")}>All dates</button>
         </div>
 
-        <Hero label={`Balance · ${rangeText}`} bal={t.bal} inn={t.inn} exp={t.exp} mat={t.mat} lab={t.lab} />
+        <Hero label={`Balance · ${rangeText}`} bal={t.bal} inn={t.inn} exp={t.exp} mat={t.mat} lab={t.lab} vs={vs} />
         <CatCard title="Material — category-wise total" list={list} kind="MAT" tot={t.mat} />
         <CatCard title="Labour — category-wise total" list={list} kind="LAB" tot={t.lab} />
         <div className="card cpad">
@@ -388,12 +468,12 @@ function ReportView({ projects, entries, pid, setPid, entriesOf }: { projects: P
         <div className="faint" style={{ fontSize: 11.5, textAlign: "center", marginTop: -4 }}>Print par “Save as PDF” choose karke WhatsApp par bhej sakte ho.</div>
       </div>
 
-      <Statement scope={scopeName} range={rangeText} list={sorted} totals={t} projName={projName} />
+      <Statement scope={scopeName} range={rangeText} list={sorted} totals={t} projName={projName} vs={vs} />
     </>
   );
 }
 
-function Statement({ scope, range, list, totals: t, projName }: { scope: string; range: string; list: Entry[]; totals: ReturnType<typeof totals>; projName: Record<string, string> }) {
+function Statement({ scope, range, list, totals: t, vs }: { scope: string; range: string; list: Entry[]; totals: ReturnType<typeof totals>; projName: Record<string, string>; vs: ValueStats | null }) {
   const mat = byCat(list, "MAT"), lab = byCat(list, "LAB");
   return (
     <div className="print-only stmt">
@@ -410,6 +490,17 @@ function Statement({ scope, range, list, totals: t, projName }: { scope: string;
           <tr className="bold"><td>Balance</td><td className="r">{money(t.bal)}</td></tr>
         </tbody>
       </table>
+      {vs && (
+        <table className="stmt-sum" style={{ marginTop: 8 }}>
+          <tbody>
+            <tr><td>Project value</td><td className="r">{money(vs.value)}</td></tr>
+            <tr><td>Received</td><td className="r">{money(vs.inn)} ({pctOf(vs.inn, vs.value)}%)</td></tr>
+            <tr><td>Expense</td><td className="r">{money(vs.exp)} ({pctOf(vs.exp, vs.value)}%)</td></tr>
+            <tr><td>Profit left (value − expense)</td><td className="r">{money(vs.value - vs.exp)}</td></tr>
+            {vs.partial && <tr><td colSpan={2} style={{ fontSize: 11, color: "#666" }}>{vs.partial}</td></tr>}
+          </tbody>
+        </table>
+      )}
       {mat.length > 0 && <StmtCatTable title="Material by category" rows={mat} />}
       {lab.length > 0 && <StmtCatTable title="Labour by category" rows={lab} />}
       <div className="stmt-sec">All entries ({list.length})</div>
@@ -506,16 +597,23 @@ function ChangePwSheet({ meName, onClose, onDone }: { meName: string; onClose: (
   );
 }
 
+function validValue(v: string) {
+  const n = Number(v.replace(/[,\s₹]/g, ""));
+  return Number.isFinite(n) && n >= 0;
+}
+
 function ProjectSheet({ onClose, onSaved }: { onClose: () => void; onSaved: (p: Project) => void }) {
   const [name, setName] = useState("");
   const [client, setClient] = useState("");
+  const [value, setValue] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   async function save() {
     if (!name.trim()) { setErr("Enter a project name."); return; }
+    if (value.trim() && !validValue(value)) { setErr("Enter a valid project value."); return; }
     setBusy(true); setErr("");
     try {
-      const r = await fetch("/api/build/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, client }) });
+      const r = await fetch("/api/build/project", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, client, value }) });
       const j = await r.json();
       if (!r.ok) { setErr(j.error || "Could not create."); setBusy(false); return; }
       onSaved(j.project);
@@ -527,6 +625,7 @@ function ProjectSheet({ onClose, onSaved }: { onClose: () => void; onSaved: (p: 
       <h2>New project</h2>
       <div className="field"><label>Project name</label><input value={name} onChange={(e) => { setName(e.target.value); setErr(""); }} placeholder="e.g. Villa – Verma Ji" /></div>
       <div className="field"><label>Client</label><input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Owner / party name" /></div>
+      <div className="field"><label>Estimated project value (₹) · optional</label><input inputMode="decimal" value={value} onChange={(e) => { setValue(e.target.value); setErr(""); }} placeholder="e.g. 5000000" /></div>
       {err && <div className="err show">{err}</div>}
       <div className="srow">
         <button className="btn ghost" onClick={onClose}>Cancel</button>
@@ -539,6 +638,7 @@ function ProjectSheet({ onClose, onSaved }: { onClose: () => void; onSaved: (p: 
 function ProjectEditSheet({ project, entryCount, onClose, onSaved, onDeleted }: { project?: Project; entryCount: number; onClose: () => void; onSaved: (p: Project) => void; onDeleted: (id: string) => void }) {
   const [name, setName] = useState(project?.name || "");
   const [client, setClient] = useState(project?.client || "");
+  const [value, setValue] = useState(project?.value ? String(project.value) : "");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -546,9 +646,10 @@ function ProjectEditSheet({ project, entryCount, onClose, onSaved, onDeleted }: 
 
   async function save() {
     if (!name.trim()) { setErr("Enter a project name."); return; }
+    if (value.trim() && !validValue(value)) { setErr("Enter a valid project value."); return; }
     setBusy(true); setErr("");
     try {
-      const r = await fetch("/api/build/project", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: project!.id, name, client }) });
+      const r = await fetch("/api/build/project", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: project!.id, name, client, value }) });
       const j = await r.json();
       if (!r.ok) { setErr(j.error || "Could not save."); setBusy(false); return; }
       onSaved(j.project);
@@ -569,6 +670,7 @@ function ProjectEditSheet({ project, entryCount, onClose, onSaved, onDeleted }: 
       <h2>Edit project</h2>
       <div className="field"><label>Project name</label><input value={name} onChange={(e) => { setName(e.target.value); setErr(""); }} placeholder="Project name" /></div>
       <div className="field"><label>Client</label><input value={client} onChange={(e) => setClient(e.target.value)} placeholder="Owner / party name" /></div>
+      <div className="field"><label>Estimated project value (₹) · optional</label><input inputMode="decimal" value={value} onChange={(e) => { setValue(e.target.value); setErr(""); }} placeholder="e.g. 5000000" /></div>
       {err && <div className="err show">{err}</div>}
       <div className="srow">
         <button className="btn ghost" onClick={onClose}>Cancel</button>
@@ -748,6 +850,43 @@ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:
 .bk .btn:disabled{opacity:.6}
 .bk .demo{font-size:11.5px;color:var(--faint);text-align:center;padding:8px 0 2px}
 .bk .delbox{margin-top:12px;padding:12px 14px;border:1px solid var(--out-soft);background:var(--out-soft);border-radius:12px}
+.bk .vblock{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.bk .pvrow{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:9px 12px;margin-bottom:10px}
+.bk .pvrow .k{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.bk .pvrow .v{font-family:Georgia,serif;font-weight:600;font-size:19px;margin-top:1px}
+.bk .lnk{font-size:13px;font-weight:700;color:var(--brand);padding:4px 6px}
+.bk .meter{border-radius:13px;padding:10px 12px;margin-bottom:9px}
+.bk .meter.in{background:var(--in-soft);color:var(--in-ink)}
+.bk .meter.out{background:var(--out-soft);color:var(--out-ink)}
+.bk .mrow{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.bk .mt{font-size:12px;font-weight:700}
+.bk .mp{font-family:Georgia,serif;font-weight:700;font-size:20px}
+.bk .ma{font-weight:700;font-size:16px}
+.bk .mo{font-size:12px;opacity:.8}
+.bk .mbar{height:8px;border-radius:99px;background:rgba(0,0,0,.1);margin-top:7px;overflow:hidden;display:flex}
+.bk .mbar>i{display:block;height:100%}
+.bk .meter.in .mbar>i{background:var(--in)}
+.bk .meter.out .mbar>i.mat{background:var(--brand)}
+.bk .meter.out .mbar>i.lab{background:var(--lab)}
+.bk .meter.out.over{box-shadow:inset 0 0 0 2px var(--out)}
+.bk .meter.out.over .mp{color:var(--out)}
+.bk .msub{display:flex;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;margin-top:7px}
+.bk .msub .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:0}
+.bk .msub .dot.mat{background:var(--brand)}
+.bk .msub .dot.lab{background:var(--lab)}
+.bk .profit{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--muted);padding:2px 3px 0}
+.bk .profit b{font-size:16px}
+.bk .vnote{font-size:11px;color:var(--faint);margin-top:6px;padding:0 3px}
+.bk .setv{margin-top:14px;border:1.5px dashed var(--line);border-radius:13px;padding:14px;text-align:center}
+.bk .setv b{display:block;font-size:14px;margin-bottom:3px}
+.bk .setv span{display:block;font-size:12px;color:var(--muted);margin-bottom:10px}
+.bk .pmini{display:flex;gap:10px;margin-top:8px}
+.bk .pm{flex:1;min-width:0;font-size:11px;color:var(--muted)}
+.bk .pm .mb{height:5px;border-radius:99px;background:var(--line);margin-top:3px;overflow:hidden}
+.bk .pm .mb>i{display:block;height:100%;border-radius:99px}
+.bk .pm .mb>i.in{background:var(--in)}
+.bk .pm .mb>i.out{background:var(--brand)}
+.bk .pm .mb>i.out.over{background:var(--out)}
 .bk .print-only{display:none}
 @media print{
   .bk header,.bk nav.tabs,.bk .screen-only,.bk .scrim{display:none!important}
