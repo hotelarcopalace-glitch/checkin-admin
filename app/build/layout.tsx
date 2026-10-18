@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   description: "Builder project expense book — payments, material and labour with category-wise totals.",
   manifest: "/build/manifest.webmanifest",
   appleWebApp: { capable: true, statusBarStyle: "default", title: "BuildKhata" },
-  icons: { icon: "/build/icon.svg", apple: "/build/icon.svg" },
+  icons: { icon: "/build/icon.svg", apple: "/build/apple-icon-180.png" },
 };
 
 export const viewport: Viewport = {

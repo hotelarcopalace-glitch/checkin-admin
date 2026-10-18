@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "in.co.checkin.buildkhata",
+      "sha256_cert_fingerprints": [
+        "FF:A3:0A:39:64:0F:71:8C:5F:1C:E1:18:23:B9:34:08:D1:75:4F:1C:F7:E1:CE:31:05:55:BC:7B:6F:7F:6F:A7"
+      ]
+    }
+  }
+]
