@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 type Project = { id: string; name: string; client: string; value: number | null };
@@ -81,6 +81,7 @@ type SheetState =
   | { kind: "editProject"; id: string }
   | { kind: "user" }
   | { kind: "changepw" }
+  | { kind: "setpw" }
   | null;
 
 const KIND_WORD: Record<Kind, string> = { IN: "Payment", MAT: "Material", LAB: "Labour" };
@@ -93,6 +94,7 @@ export default function BuildApp({ meName }: { meName: string }) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [view, setView] = useState<View>({ name: "projects" });
   const [sheet, setSheet] = useState<SheetState>(null);
+  const askedPw = useRef(false);
 
   const reload = useCallback(async () => {
     try {
@@ -102,6 +104,8 @@ export default function BuildApp({ meName }: { meName: string }) {
       if (!r.ok) { setLoadErr(j.error || "Could not load."); setLoading(false); return; }
       setProjects(j.projects || []);
       setEntries(j.entries || []);
+      // Blank password: ask for a new one once, right after sign-in (not on every reload).
+      if (j.me?.blankPassword && !askedPw.current) { askedPw.current = true; setSheet((s) => s ?? { kind: "setpw" }); }
       setLoading(false);
     } catch {
       setLoadErr("Network error.");
@@ -156,6 +160,7 @@ export default function BuildApp({ meName }: { meName: string }) {
 
       {sheet?.kind === "user" && <UserSheet meName={meName} onClose={() => setSheet(null)} onLogout={logout} onChangePw={() => setSheet({ kind: "changepw" })} />}
       {sheet?.kind === "changepw" && <ChangePwSheet meName={meName} onClose={() => setSheet(null)} onDone={() => setSheet(null)} />}
+      {sheet?.kind === "setpw" && <ChangePwSheet blank meName={meName} onClose={() => setSheet(null)} onDone={() => setSheet(null)} />}
       {sheet?.kind === "project" && <ProjectSheet onClose={() => setSheet(null)} onSaved={(p) => { setProjects((x) => [...x, p]); setSheet(null); setView({ name: "project", id: p.id }); }} />}
       {sheet?.kind === "editProject" && (
         <ProjectEditSheet
@@ -550,7 +555,7 @@ function UserSheet({ meName, onClose, onLogout, onChangePw }: { meName: string; 
   );
 }
 
-function ChangePwSheet({ meName, onClose, onDone }: { meName: string; onClose: () => void; onDone: () => void }) {
+function ChangePwSheet({ meName, blank, onClose, onDone }: { meName: string; blank?: boolean; onClose: () => void; onDone: () => void }) {
   const [cur, setCur] = useState("");
   const [n1, setN1] = useState("");
   const [n2, setN2] = useState("");
@@ -563,7 +568,7 @@ function ChangePwSheet({ meName, onClose, onDone }: { meName: string; onClose: (
     if (n1 !== n2) { setErr("Naya password dono jagah same nahi hai."); return; }
     setBusy(true); setErr("");
     try {
-      const r = await fetch("/api/build/password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ current: cur, next: n1 }) });
+      const r = await fetch("/api/build/password", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ current: blank ? "" : cur, next: n1 }) });
       const j = await r.json();
       if (!r.ok) { setErr(j.error || "Password nahi badla."); setBusy(false); return; }
       setDone(true); setBusy(false);
@@ -573,7 +578,8 @@ function ChangePwSheet({ meName, onClose, onDone }: { meName: string; onClose: (
   return (
     <Scrim onClose={onClose}>
       <div className="grab" />
-      <h2>Change password</h2>
+      <h2>{blank ? "Apna password set karein" : "Change password"}</h2>
+      {blank && !done && <div className="faint" style={{ fontSize: 13, margin: "2px 0 10px" }}>Abhi aapka password blank hai, yaani sirf username jaanne wala koi bhi login kar sakta hai. Naya password rakh lein.</div>}
       {done ? (
         <>
           <div style={{ padding: "16px 2px", color: "var(--in-ink)", fontWeight: 600 }}>✓ Password badal gaya. Agli baar naye password se login karein.</div>
@@ -581,13 +587,13 @@ function ChangePwSheet({ meName, onClose, onDone }: { meName: string; onClose: (
         </>
       ) : (
         <>
-          <div className="field"><label>Purana password (blank ho to khali chhodein)</label><input type="password" value={cur} onChange={(e) => { setCur(e.target.value); setErr(""); }} /></div>
+          {!blank && <div className="field"><label>Purana password (blank ho to khali chhodein)</label><input type="password" value={cur} onChange={(e) => { setCur(e.target.value); setErr(""); }} /></div>}
           <div className="field"><label>Naya password</label><input type="password" value={n1} onChange={(e) => { setN1(e.target.value); setErr(""); }} /></div>
           <div className="field"><label>Naya password dubara</label><input type="password" value={n2} onChange={(e) => { setN2(e.target.value); setErr(""); }} /></div>
           {err && <div className="err show">{err}</div>}
           <div className="srow">
-            <button className="btn ghost" onClick={onClose}>Cancel</button>
-            <button className="btn primary" onClick={save} disabled={busy}>{busy ? "…" : "Change"}</button>
+            <button className="btn ghost" onClick={onClose}>{blank ? "Baad mein" : "Cancel"}</button>
+            <button className="btn primary" onClick={save} disabled={busy}>{busy ? "…" : blank ? "Password set karein" : "Change"}</button>
           </div>
           <div className="demo">{meName} ka password</div>
         </>

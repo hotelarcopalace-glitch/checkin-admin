@@ -38,6 +38,15 @@ export async function verifyBuildUser(
   return { username: rows[0].username, name: rows[0].name };
 }
 
+/** True when the account still has a blank password (it can sign in with an empty password). */
+export async function hasBlankPassword(username: string): Promise<boolean> {
+  const rows = await query<{ blank: boolean }>(
+    "SELECT (password_hash = '') AS blank FROM build_users WHERE lower(username) = lower($1) AND active LIMIT 1",
+    [username.trim()]
+  );
+  return rows[0]?.blank === true;
+}
+
 /** A user changes their own password (verifies the current one first). */
 export async function changeBuildPassword(
   username: string,
