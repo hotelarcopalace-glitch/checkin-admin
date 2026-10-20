@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createBuildToken, BUILD_COOKIE, buildCookieMaxAge } from "@/lib/build-auth";
-import { verifyBuildUser } from "@/lib/build";
+import { buildUserState, verifyBuildUser } from "@/lib/build";
 import { hasDatabase } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -46,6 +46,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Login not available. Run the DB setup first." }, { status: 500 });
   }
   if (!user) {
+    // A user whose password is still blank gets pointed at the OTP flow instead of "wrong password".
+    const state = await buildUserState(username).catch(() => null);
+    if (state && state.active && state.passwordHash === "") {
+      return NextResponse.json(
+        { error: "Your password is not set yet. Set it with an OTP.", setup: true },
+        { status: 401 }
+      );
+    }
     return NextResponse.json({ error: "Wrong username or password." }, { status: 401 });
   }
 

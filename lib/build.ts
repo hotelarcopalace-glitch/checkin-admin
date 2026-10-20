@@ -57,6 +57,48 @@ export async function changeBuildPassword(
   return "ok";
 }
 
+export type BuildUserRow = {
+  id: string;
+  username: string;
+  name: string;
+  mobile: string | null;
+  active: boolean;
+  hasPassword: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+};
+
+export const BUILD_USERNAME_RE = /^[a-z0-9._-]{3,30}$/;
+
+/** Short fingerprint of a stored hash; "" for a blank password. */
+export function hashFingerprint(hash: string): string {
+  return hash ? hash.split(":")[1]?.slice(0, 16) ?? "" : "";
+}
+
+export async function listBuildUsers(): Promise<BuildUserRow[]> {
+  return query<BuildUserRow>(
+    `SELECT id::text AS id, username, name, mobile, active,
+            (password_hash <> '') AS "hasPassword",
+            last_login_at AS "lastLoginAt", created_at AS "createdAt"
+     FROM build_users ORDER BY created_at ASC, id ASC`
+  );
+}
+
+/** Account state used by the login screen: does it exist, is it active, is the password blank. */
+export async function buildUserState(
+  username: string
+): Promise<{ id: string; username: string; name: string; mobile: string | null; active: boolean; passwordHash: string } | null> {
+  const rows = await query<{
+    id: string; username: string; name: string; mobile: string | null; active: boolean; password_hash: string;
+  }>(
+    "SELECT id::text AS id, username, name, mobile, active, password_hash FROM build_users WHERE lower(username) = lower($1) LIMIT 1",
+    [username.trim()]
+  );
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return { id: r.id, username: r.username, name: r.name, mobile: r.mobile, active: r.active, passwordHash: r.password_hash };
+}
+
 const PROJECT_COLS = "id::text AS id, name, COALESCE(client,'') AS client, estimated_value::float8 AS value";
 // Same shape before db-setup has added estimated_value, so projects still load meanwhile.
 const PROJECT_COLS_OLD = "id::text AS id, name, COALESCE(client,'') AS client, NULL::float8 AS value";

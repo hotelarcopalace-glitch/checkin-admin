@@ -41,3 +41,25 @@ export async function currentBuildUser(): Promise<BuildSession | null> {
 }
 
 export const buildCookieMaxAge = DAYS * 24 * 60 * 60;
+
+// Short-lived token proving the holder just entered a valid OTP for `username`. It is
+// tied to a fingerprint of the current password hash, so it stops working as soon as
+// the password is set (one use).
+export async function createBuildResetToken(username: string, fingerprint: string): Promise<string> {
+  return new SignJWT({ username, fp: fingerprint, purpose: "build-reset" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("10m")
+    .sign(key());
+}
+
+export async function verifyBuildResetToken(token?: string): Promise<{ username: string; fp: string } | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, key());
+    if (payload.purpose !== "build-reset" || typeof payload.username !== "string") return null;
+    return { username: payload.username, fp: typeof payload.fp === "string" ? payload.fp : "" };
+  } catch {
+    return null;
+  }
+}

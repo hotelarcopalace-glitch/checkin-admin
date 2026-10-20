@@ -185,3 +185,20 @@ CREATE TABLE IF NOT EXISTS rate_limits (
 
 -- Estimated total value of a BuildKhata project; drives the received % and expense % figures.
 ALTER TABLE build_projects ADD COLUMN IF NOT EXISTS estimated_value NUMERIC(14,2);
+
+-- BuildKhata logins: a mobile number per user, used to set or reset the password with an OTP.
+-- An empty password_hash means "password not set yet" (nobody can sign in with it).
+ALTER TABLE build_users ADD COLUMN IF NOT EXISTS mobile TEXT;
+
+CREATE TABLE IF NOT EXISTS build_otps (
+  id         BIGSERIAL PRIMARY KEY,
+  username   TEXT        NOT NULL,
+  mobile     TEXT        NOT NULL,
+  code       TEXT        NOT NULL,
+  attempts   INT         NOT NULL DEFAULT 0,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS build_otps_user_idx ON build_otps (username, created_at DESC);

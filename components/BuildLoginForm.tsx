@@ -3,70 +3,191 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+type Stage = "login" | "user" | "otp" | "newpass";
+
+const input =
+  "h-12 rounded-xl border border-amber-200 bg-amber-50/40 px-4 text-base outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200";
+const label = "text-sm font-medium text-amber-900/70";
+const primary = "h-12 rounded-xl bg-amber-700 text-base font-semibold text-amber-50 disabled:opacity-60";
+const linkBtn = "text-sm font-medium text-amber-800 underline underline-offset-2";
+
+async function post(url: string, body: unknown) {
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok, j };
+}
+
 export default function BuildLoginForm() {
   const router = useRouter();
+  const [stage, setStage] = useState<Stage>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [token, setToken] = useState("");
+  const [pw1, setPw1] = useState("");
+  const [pw2, setPw2] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  function go(next: Stage) {
     setErr("");
-    if (!username.trim() || !password) {
-      setErr("Enter your username and password.");
-      return;
-    }
+    setStage(next);
+  }
+
+  async function run(fn: () => Promise<void>) {
+    setErr("");
     setBusy(true);
     try {
-      const r = await fetch("/api/build/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), password }),
-      });
-      const j = await r.json();
-      if (!r.ok) {
-        setErr(j.error || "Login failed.");
-        setBusy(false);
-        return;
-      }
-      router.replace("/build");
+      await fn();
     } catch {
       setErr("Network error. Try again.");
-      setBusy(false);
     }
+    setBusy(false);
+  }
+
+  const signIn = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim() || !password) return setErr("Enter your username and password.");
+    run(async () => {
+      const { ok, j } = await post("/api/build/login", { username: username.trim(), password });
+      if (ok) return router.replace("/build");
+      if (j.setup) return go("user");
+      setErr(j.error || "Login failed.");
+    });
+  };
+
+  const sendOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim()) return setErr("Enter your username.");
+    run(async () => {
+      const { ok, j } = await post("/api/build/reset/send", { username: username.trim() });
+      if (!ok) return setErr(j.error || "Could not send the OTP.");
+      setCode("");
+      go("otp");
+    });
+  };
+
+  const checkOtp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(code.trim())) return setErr("Enter the 6-digit OTP.");
+    run(async () => {
+      const { ok, j } = await post("/api/build/reset/verify", { username: username.trim(), code: code.trim() });
+      if (!ok) return setErr(j.error || "Wrong OTP.");
+      setToken(j.token);
+      setPw1("");
+      setPw2("");
+      go("newpass");
+    });
+  };
+
+  const savePassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw1.length < 4) return setErr("The password must be at least 4 characters.");
+    if (pw1 !== pw2) return setErr("The two passwords do not match.");
+    run(async () => {
+      const { ok, j } = await post("/api/build/reset/set", { token, password: pw1 });
+      if (!ok) return setErr(j.error || "Could not set the password.");
+      router.replace("/build");
+    });
+  };
+
+  const error = err && <p className="text-sm text-red-600">{err}</p>;
+
+  if (stage === "user") {
+    return (
+      <form onSubmit={sendOtp} className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-amber-900">Set or reset your password</h2>
+          <p className="mt-1 text-sm text-amber-900/60">
+            We make an OTP for the mobile number saved on your account. Use this the first time you sign in, or if you forgot your password.
+          </p>
+        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className={label}>Username</span>
+          <input id="reset-username" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" className={input} />
+        </label>
+        {error}
+        <button type="submit" disabled={busy} className={primary}>{busy ? "Please wait…" : "Get OTP"}</button>
+        <button type="button" onClick={() => go("login")} className={linkBtn}>Back to sign in</button>
+      </form>
+    );
+  }
+
+  if (stage === "otp") {
+    return (
+      <form onSubmit={checkOtp} className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-amber-900">Enter the OTP</h2>
+          <p className="mt-1 text-sm text-amber-900/60">
+            An OTP was made for <strong>{username.trim()}</strong>. SMS is not connected yet, so ask the admin for the code. It is valid for 10 minutes.
+          </p>
+        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className={label}>6-digit OTP</span>
+          <input id="reset-otp" value={code} onChange={(e) => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" className={`${input} tracking-[0.4em]`} />
+        </label>
+        {error}
+        <button type="submit" disabled={busy} className={primary}>{busy ? "Checking…" : "Verify OTP"}</button>
+        <div className="flex justify-between">
+          <button type="button" onClick={() => go("user")} className={linkBtn}>Send a new OTP</button>
+          <button type="button" onClick={() => go("login")} className={linkBtn}>Back to sign in</button>
+        </div>
+      </form>
+    );
+  }
+
+  if (stage === "newpass") {
+    return (
+      <form onSubmit={savePassword} className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-base font-semibold text-amber-900">Choose a new password</h2>
+          <p className="mt-1 text-sm text-amber-900/60">The OTP is correct. Your old password (if any) stops working once you save this.</p>
+        </div>
+        <label className="flex flex-col gap-1.5">
+          <span className={label}>New password</span>
+          <input id="reset-pw1" type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} autoComplete="new-password" className={input} />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className={label}>Type it again</span>
+          <input id="reset-pw2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" className={input} />
+        </label>
+        {error}
+        <button type="submit" disabled={busy} className={primary}>{busy ? "Saving…" : "Save and sign in"}</button>
+      </form>
+    );
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
+    <form onSubmit={signIn} className="flex flex-col gap-4">
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-amber-900/70">Username</span>
+        <span className={label}>Username</span>
         <input
+          id="login-username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           autoCapitalize="none"
           autoCorrect="off"
           placeholder="rahul"
-          className="h-12 rounded-xl border border-amber-200 bg-amber-50/40 px-4 text-base outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+          className={input}
         />
       </label>
       <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium text-amber-900/70">Password</span>
+        <span className={label}>Password</span>
         <input
+          id="login-password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
-          className="h-12 rounded-xl border border-amber-200 bg-amber-50/40 px-4 text-base outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200"
+          className={input}
         />
       </label>
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      <button
-        type="submit"
-        disabled={busy}
-        className="h-12 rounded-xl bg-amber-700 text-base font-semibold text-amber-50 disabled:opacity-60"
-      >
+      {error}
+      <button type="submit" disabled={busy} className={primary}>
         {busy ? "Signing in…" : "Sign in"}
+      </button>
+      <button type="button" onClick={() => go("user")} className={linkBtn}>
+        First time, or forgot your password?
       </button>
     </form>
   );

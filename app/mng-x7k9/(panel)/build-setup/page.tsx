@@ -1,20 +1,26 @@
 import BuildSetupButton from "@/components/BuildSetupButton";
+import BuildUsersManager from "@/components/BuildUsersManager";
 
 export const metadata = { title: "BuildKhata setup" };
 
 export default function BuildSetupPage() {
   return (
-    <div className="mx-auto max-w-2xl">
-      <h1 className="text-xl font-semibold tracking-tight text-slate-800">BuildKhata — one-time setup</h1>
+    <div className="mx-auto max-w-5xl">
+      <h1 className="text-xl font-semibold tracking-tight text-slate-800">BuildKhata users and setup</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Builder project expense app. Yahan ek baar password set karein — tables aur 5 users ban jayenge.
+        Builder project expense app. Add users and read out their OTPs here. The one-time setup is at the bottom.
       </p>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mt-6">
+        <BuildUsersManager />
+      </div>
+
+      <h2 className="mt-10 text-base font-semibold text-slate-800">First-time setup</h2>
+      <div className="mt-3 max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <BuildSetupButton />
       </div>
 
-      <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+      <div className="mt-6 max-w-2xl rounded-2xl border border-slate-200 bg-slate-50 p-6">
         <h2 className="text-sm font-semibold text-slate-700">Aage kya karna hai</h2>
         <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-slate-600">
           <li>Upar password type karke <strong>“Create tables + 5 users”</strong> dabaayein.</li>
