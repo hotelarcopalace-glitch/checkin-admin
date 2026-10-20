@@ -559,7 +559,6 @@ function ChangePwSheet({ meName, onClose, onDone }: { meName: string; onClose: (
   const [done, setDone] = useState(false);
 
   async function save() {
-    if (!cur) { setErr("Purana password daalein."); return; }
     if (n1.length < 4) { setErr("Naya password kam se kam 4 character ka ho."); return; }
     if (n1 !== n2) { setErr("Naya password dono jagah same nahi hai."); return; }
     setBusy(true); setErr("");
@@ -582,7 +581,7 @@ function ChangePwSheet({ meName, onClose, onDone }: { meName: string; onClose: (
         </>
       ) : (
         <>
-          <div className="field"><label>Purana password</label><input type="password" value={cur} onChange={(e) => { setCur(e.target.value); setErr(""); }} /></div>
+          <div className="field"><label>Purana password (blank ho to khali chhodein)</label><input type="password" value={cur} onChange={(e) => { setCur(e.target.value); setErr(""); }} /></div>
           <div className="field"><label>Naya password</label><input type="password" value={n1} onChange={(e) => { setN1(e.target.value); setErr(""); }} /></div>
           <div className="field"><label>Naya password dubara</label><input type="password" value={n2} onChange={(e) => { setN2(e.target.value); setErr(""); }} /></div>
           {err && <div className="err show">{err}</div>}

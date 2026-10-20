@@ -33,8 +33,7 @@ export async function verifyBuildUser(
     [username.trim()]
   );
   if (rows.length === 0) return null;
-  const ok = await verifyPassword(password, rows[0].password_hash);
-  if (!ok) return null;
+  if (!(await passwordMatches(password, rows[0].password_hash))) return null;
   await query("UPDATE build_users SET last_login_at = NOW() WHERE id = $1", [rows[0].id]);
   return { username: rows[0].username, name: rows[0].name };
 }
@@ -50,8 +49,7 @@ export async function changeBuildPassword(
     [username.trim()]
   );
   if (rows.length === 0) return "not-found";
-  const ok = await verifyPassword(current, rows[0].password_hash);
-  if (!ok) return "wrong-current";
+  if (!(await passwordMatches(current, rows[0].password_hash))) return "wrong-current";
   const hash = await hashPassword(next);
   await query("UPDATE build_users SET password_hash = $1 WHERE id = $2", [hash, rows[0].id]);
   return "ok";
@@ -70,9 +68,10 @@ export type BuildUserRow = {
 
 export const BUILD_USERNAME_RE = /^[a-z0-9._-]{3,30}$/;
 
-/** Short fingerprint of a stored hash; "" for a blank password. */
-export function hashFingerprint(hash: string): string {
-  return hash ? hash.split(":")[1]?.slice(0, 16) ?? "" : "";
+/** A blank stored password ("") matches only an empty password; otherwise the scrypt hash decides. */
+async function passwordMatches(given: string, stored: string): Promise<boolean> {
+  if (stored === "") return given === "";
+  return verifyPassword(given, stored);
 }
 
 export async function listBuildUsers(): Promise<BuildUserRow[]> {

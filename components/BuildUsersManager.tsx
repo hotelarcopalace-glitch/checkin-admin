@@ -89,7 +89,7 @@ export default function BuildUsersManager() {
     const done = await call(
       "POST",
       { name, username, mobile },
-      `Added ${username.trim().toLowerCase()}. Their password is blank: they set it from the login page with an OTP.`
+      `Added ${username.trim().toLowerCase()}. Their password is blank: they sign in with just the username and set a password inside the app.`
     );
     if (done) {
       setName("");
@@ -111,7 +111,7 @@ export default function BuildUsersManager() {
   }
 
   function blank(u: U) {
-    if (!window.confirm(`Clear the password of ${u.username}? They will have to set a new one with an OTP.`)) return;
+    if (!window.confirm(`Clear the password of ${u.username}? Anyone who knows the username can then sign in until a new password is set.`)) return;
     call("PATCH", { id: u.id, blankPassword: true }, `${u.username}: password is now blank.`);
   }
 
@@ -120,7 +120,7 @@ export default function BuildUsersManager() {
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="text-base font-semibold text-slate-800">Add a user</h2>
         <p className="mt-1 text-sm text-slate-500">
-          The password starts blank. The person sets it the first time with an OTP for this mobile number.
+          The password starts blank, so the person signs in with just the username and then sets a password under Change password. The mobile number is for the Forgot password OTP.
         </p>
         <form onSubmit={add} className="mt-4 flex flex-wrap items-end gap-3">
           <label className="min-w-[10rem] flex-1 text-sm font-medium text-slate-600">
@@ -146,7 +146,7 @@ export default function BuildUsersManager() {
         <div className="rounded-2xl border border-amber-400 bg-amber-50 p-5">
           <h2 className="text-base font-semibold text-slate-800">OTPs waiting to be read out</h2>
           <p className="mt-1 text-sm text-slate-600">
-            SMS sending is not connected yet, so the OTP does not reach the phone. Tell the person this code by call or message. It expires in 10 minutes.
+            SMS sending is not connected yet, so the OTP does not reach the phone. Tell the person this code by call or message. When they enter it, their password is cleared and they are signed in. It expires in 10 minutes.
           </p>
           <ul className="mt-2 divide-y divide-amber-200/70">
             {otps.map((o) => (
@@ -202,7 +202,7 @@ export default function BuildUsersManager() {
                         ) : u.hasPassword ? (
                           <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">Set</span>
                         ) : (
-                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">Blank, waiting for OTP</span>
+                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">Blank, no password needed</span>
                         )}
                       </td>
                       <td className="px-2 py-3 text-slate-500">{u.lastLoginAt ? formatISTLong(u.lastLoginAt) : "Never"}</td>

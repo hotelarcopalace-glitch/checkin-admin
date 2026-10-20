@@ -1,8 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { hasDatabase, query } from "@/lib/db";
-import { buildUserState, hashFingerprint } from "@/lib/build";
-import { createBuildResetToken } from "@/lib/build-auth";
+import { buildUserState } from "@/lib/build";
+import { BUILD_COOKIE, buildCookieMaxAge, createBuildToken } from "@/lib/build-auth";
 import { clientIp, tooMany } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -16,8 +16,8 @@ function same(a: string, b: string) {
   return x.length === y.length && timingSafeEqual(x, y);
 }
 
-// Step 2: checks the OTP. A right code returns a 10-minute token that lets the caller set a new
-// password. Five wrong codes burn the OTP.
+// Forgot password, step 2: checks the OTP. A right code clears the password (blank) and signs the
+// user in; they then set a new password from Account > Change password. Five wrong codes burn the OTP.
 export async function POST(req: Request) {
   if (!hasDatabase()) return NextResponse.json({ error: "Database not configured." }, { status: 503 });
 
@@ -59,8 +59,17 @@ export async function POST(req: Request) {
     const user = await buildUserState(username);
     if (!user || !user.active) return wrong;
     await query("UPDATE build_otps SET used_at = NOW() WHERE id = $1", [otp.id]);
-    const token = await createBuildResetToken(user.username, hashFingerprint(user.passwordHash));
-    return NextResponse.json({ ok: true, token, name: user.name });
+    await query("UPDATE build_users SET password_hash = '', last_login_at = NOW() WHERE id = $1", [user.id]);
+
+    const res = NextResponse.json({ ok: true, name: user.name });
+    res.cookies.set(BUILD_COOKIE, await createBuildToken(user.username, user.name), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: buildCookieMaxAge,
+    });
+    return res;
   } catch {
     return NextResponse.json({ error: "Could not check the OTP." }, { status: 500 });
   }

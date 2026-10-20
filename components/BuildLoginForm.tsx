@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type Stage = "login" | "user" | "otp" | "newpass";
+type Stage = "login" | "user" | "otp" | "done";
 
 const input =
   "h-12 rounded-xl border border-amber-200 bg-amber-50/40 px-4 text-base outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-200";
@@ -23,9 +23,6 @@ export default function BuildLoginForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [token, setToken] = useState("");
-  const [pw1, setPw1] = useState("");
-  const [pw2, setPw2] = useState("");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -45,13 +42,13 @@ export default function BuildLoginForm() {
     setBusy(false);
   }
 
+  // A new user (or one who just used "Forgot password") has a blank password: leave the field empty.
   const signIn = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || !password) return setErr("Enter your username and password.");
+    if (!username.trim()) return setErr("Enter your username.");
     run(async () => {
       const { ok, j } = await post("/api/build/login", { username: username.trim(), password });
       if (ok) return router.replace("/build");
-      if (j.setup) return go("user");
       setErr(j.error || "Login failed.");
     });
   };
@@ -73,21 +70,7 @@ export default function BuildLoginForm() {
     run(async () => {
       const { ok, j } = await post("/api/build/reset/verify", { username: username.trim(), code: code.trim() });
       if (!ok) return setErr(j.error || "Wrong OTP.");
-      setToken(j.token);
-      setPw1("");
-      setPw2("");
-      go("newpass");
-    });
-  };
-
-  const savePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pw1.length < 4) return setErr("The password must be at least 4 characters.");
-    if (pw1 !== pw2) return setErr("The two passwords do not match.");
-    run(async () => {
-      const { ok, j } = await post("/api/build/reset/set", { token, password: pw1 });
-      if (!ok) return setErr(j.error || "Could not set the password.");
-      router.replace("/build");
+      go("done");
     });
   };
 
@@ -97,9 +80,9 @@ export default function BuildLoginForm() {
     return (
       <form onSubmit={sendOtp} className="flex flex-col gap-4">
         <div>
-          <h2 className="text-base font-semibold text-amber-900">Set or reset your password</h2>
+          <h2 className="text-base font-semibold text-amber-900">Forgot your password?</h2>
           <p className="mt-1 text-sm text-amber-900/60">
-            We make an OTP for the mobile number saved on your account. Use this the first time you sign in, or if you forgot your password.
+            We make an OTP for the mobile number saved on your account. After you enter it, your password is cleared and you are signed in.
           </p>
         </div>
         <label className="flex flex-col gap-1.5">
@@ -136,24 +119,17 @@ export default function BuildLoginForm() {
     );
   }
 
-  if (stage === "newpass") {
+  if (stage === "done") {
     return (
-      <form onSubmit={savePassword} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
         <div>
-          <h2 className="text-base font-semibold text-amber-900">Choose a new password</h2>
-          <p className="mt-1 text-sm text-amber-900/60">The OTP is correct. Your old password (if any) stops working once you save this.</p>
+          <h2 className="text-base font-semibold text-amber-900">OTP is correct</h2>
+          <p className="mt-1 text-sm text-amber-900/60">
+            Your password is now blank and you are signed in. Set a new one inside the app: tap your name at the top, then <strong>Change password</strong>, and leave the old password empty.
+          </p>
         </div>
-        <label className="flex flex-col gap-1.5">
-          <span className={label}>New password</span>
-          <input id="reset-pw1" type="password" value={pw1} onChange={(e) => setPw1(e.target.value)} autoComplete="new-password" className={input} />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className={label}>Type it again</span>
-          <input id="reset-pw2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" className={input} />
-        </label>
-        {error}
-        <button type="submit" disabled={busy} className={primary}>{busy ? "Saving…" : "Save and sign in"}</button>
-      </form>
+        <button type="button" onClick={() => router.replace("/build")} className={primary}>Open BuildKhata</button>
+      </div>
     );
   }
 
@@ -178,7 +154,7 @@ export default function BuildLoginForm() {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••"
+          placeholder="Leave empty if you have none yet"
           className={input}
         />
       </label>
@@ -187,7 +163,7 @@ export default function BuildLoginForm() {
         {busy ? "Signing in…" : "Sign in"}
       </button>
       <button type="button" onClick={() => go("user")} className={linkBtn}>
-        First time, or forgot your password?
+        Forgot your password?
       </button>
     </form>
   );
