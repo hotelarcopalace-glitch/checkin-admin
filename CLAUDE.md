@@ -24,30 +24,54 @@ already a MySQL error page when the snapshot was taken.
 | What | Where |
 | --- | --- |
 | Site | https://checkin.co.in — admin at `/mng-x7k9` (`/admin` just redirects home) |
-| Fallback | https://checkin-admin-cs.netlify.app |
+| Server | **Linode** `checkin-prod`, Mumbai 2, Ubuntu 24.04, 2 GB, IP `172.236.182.160` (moved here from Netlify on 21 Oct 2026) |
+| Old host | https://checkin-admin-cs.netlify.app (Netlify, no longer serves the domain; to be downgraded/deleted) |
 | Repo | https://github.com/checkinsoftware/checkin-admin (**private**, standalone, no longer a fork) |
-| Netlify project | `checkin-admin-cs`, team Checkinwebsite, Pro plan |
+| Netlify project | `checkin-admin-cs`, team Checkinwebsite, Pro plan (old; see Infrastructure) |
 
-Hosting moved from Vercel to Netlify on 30 Sep 2026 (the Vercel projects are gone).
+Hosting moved from Vercel to Netlify on 30 Sep 2026 (the Vercel projects are gone), then from
+Netlify to a Linode server on 21 Oct 2026 (Netlify credits made it too costly).
 Admin username is `admin`. The password is in the gitignored `CREDENTIALS-NEW-SETUP.txt`
-and in Netlify env vars as a scrypt hash. Lost it? Run `npm run gen:admin` and update
-`ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` in Netlify, then redeploy.
+and on the server (`/home/deploy/checkin.env`) as a scrypt hash. Lost it? Run `npm run gen:admin`,
+put the new `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` into that env file and `sudo systemctl restart checkin`.
 
 ## Infrastructure
 
-- **Hosting:** Netlify. The site is linked to the GitHub repo (14 Oct 2026), so a push to
-  `main` should deploy by itself; the fallback is `netlify deploy --prod` with a personal
-  access token (`NETLIFY_AUTH_TOKEN`). Tokens expire (7 days by default): "Unauthorized"
-  from the CLI means make a new one under User settings > Applications. After any
-  schema change run `POST /api/admin/db-setup` once from an admin session.
-  `npm run build` first runs `scripts/stamp-build.mjs`, which writes `public/build-info.json`
-  (drives the "Updated" toast on the site and admin).
-- **Database:** Netlify's own Postgres extension (`@netlify/database`); the URL reaches the
-  app as `NETLIFY_DB_URL` (lib/db.ts also accepts `DATABASE_URL`). **Never set it by hand.**
+### Server (Linode `checkin-prod`) — current production
+- **Access:** `ssh -i C:\Users\Info\linode-keys\id_ed25519 deploy@172.236.182.160` (root works with the same key;
+  password logins are off). Linode firewall `checkin-fw` + UFW allow only 22, 80, 443. fail2ban is on.
+  Linode Backups are enabled on the account plan; the root password is only with the owner.
+- **Stack:** nginx (TLS, `/etc/nginx/sites-available/checkin`) -> Next.js on 127.0.0.1:3000 run by systemd
+  (`checkin.service`, user `deploy`) -> Postgres 16 on localhost (db and role `checkin`). Node 22, 2 GB swap.
+  nginx overwrites `X-Forwarded-For` and `X-Nf-Client-Connection-Ip` with the real peer address; the per-IP
+  rate limits and the SMSInsert source IP depend on that, so keep it.
+- **Env file:** `/home/deploy/checkin.env` (mode 600, systemd `EnvironmentFile` and sourced for builds). It holds
+  everything listed under "Environment variables" plus `SMS_GATEWAY_ID`, `SMS_GATEWAY_PWD`, `DATABASE_URL`.
+  `NEXT_PUBLIC_*` are inlined at build time, so changing them needs a redeploy, others need
+  `sudo systemctl restart checkin`.
+- **Deploy:** from the repo, commit first, then `bash scripts/deploy-linode.sh`. It uploads `git archive HEAD`,
+  runs `npm ci` + `npm run build` on the server (a few minutes), switches `/home/deploy/current` and restarts
+  the service. Old releases are pruned (last 3 kept). `git push` does not deploy anything. After a schema change
+  run `POST /api/admin/db-setup` once from an admin session.
+- **Backups:** cron (user `deploy`) runs `/home/deploy/tools/backup-db.sh` at 02:30 IST into
+  `/home/deploy/backups` (gzip SQL, 14 days). Restore: `gunzip -c file | psql "$DATABASE_URL"`.
+- **TLS:** Let's Encrypt via certbot (webroot, auto-renew timer; `certbot renew --dry-run` passes). The current
+  chain is the new ISRG Root YE/X2 hierarchy, which Windows 7 does not trust: the hotel PCs needed
+  `certutil -addstore -f Root isrgrootx1.cer` (and .NET 4.8 / TLS 1.2 for the SMS program).
+- **Database copy history:** data was copied from Netlify's Postgres on 21 Oct 2026 (sms_messages 43,945 rows from
+  Netlify, ids below 1,000,000; Linode ids started at 1,043,142 so new rows never clash).
+
+### Old: Netlify
+- Netlify (`checkin-admin-cs`) no longer serves the domain but still holds the old database and a temporary
+  admin-only route `/api/admin/export-all` that was used for the copy. **Delete that deployment or the project
+  soon** (or redeploy a clean `main` with a fresh `NETLIFY_AUTH_TOKEN`; tokens expire after 7 days). The Netlify
+  GitHub link only creates "Pending Review" builds and never deployed anything.
+- `netlify.toml` redirects (`/sms`, `/welcome`) are Netlify-only; on Linode the same rewrites come from
+  `next.config.ts`. `lib/db.ts` still accepts `NETLIFY_DB_URL`, which is only useful on Netlify.
 - **Domain:** checkin.co.in is registered at **GoDaddy** (nameservers `domaincontrol.com`).
   There is no GoDaddy API access here; DNS edits are manual, done by the owner.
-  The records were repointed from Vercel to Netlify on 30 Sep 2026; check GoDaddy for the
-  exact current values. SSL is Let's Encrypt, issued and renewed by Netlify.
+  `A @` -> 172.236.182.160 and `CNAME www` -> checkin.co.in since 21 Oct 2026. Two `_acme-challenge` TXT records
+  from the first certificate are still there and can be deleted.
 - The owner also has a **Hostinger** account (arcoautozone.in/.com, carspareparts.co.in,
   and a KVM 2 VPS running WordPress). Unrelated to this project — do not touch it.
 
@@ -60,8 +84,7 @@ Push notifications additionally need `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMA
 `FIREBASE_PRIVATE_KEY` (server) and `NEXT_PUBLIC_FIREBASE_API_KEY`,
 `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`, `NEXT_PUBLIC_FIREBASE_PROJECT_ID`,
 `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`, `NEXT_PUBLIC_FIREBASE_APP_ID`,
-`NEXT_PUBLIC_FIREBASE_VAPID_KEY` (client). **All of these are set in Vercel** (production,
-preview and development) and push has been confirmed working on a real Android phone.
+`NEXT_PUBLIC_FIREBASE_VAPID_KEY` (client). **All of these are set in `/home/deploy/checkin.env`** (once Vercel, then Netlify) and push has been confirmed working on a real Android phone.
 
 Firebase project is **`checkin-3715a`**, service account
 `firebase-adminsdk-u7h1t@checkin-3715a.iam.gserviceaccount.com`. The downloaded service
