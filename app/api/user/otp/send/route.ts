@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasDatabase, query } from "@/lib/db";
 import { clientIp, tooMany } from "@/lib/rate-limit";
 import { normaliseMobile } from "@/lib/sms-insert";
+import { sendOtpSms } from "@/lib/sms-gateway";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,8 @@ export async function POST(req: Request) {
     throw err;
   }
 
-  // The code is never returned to the browser. Until an SMS gateway is connected
-  // (TODO: send `code` to `mobile` here), admins read it from the Web Users page.
+  // The code is never returned to the browser. It goes to the guest's phone by SMS; if the gateway
+  // is not set up or fails, admins can still read it from the Web Users page.
+  await sendOtpSms(mobile, code, "guest-login");
   return NextResponse.json({ ok: true, mobile, expiresInMinutes: OTP_TTL_MINUTES });
 }

@@ -146,7 +146,7 @@ export default function BuildUsersManager() {
         <div className="rounded-2xl border border-amber-400 bg-amber-50 p-5">
           <h2 className="text-base font-semibold text-slate-800">OTPs waiting to be read out</h2>
           <p className="mt-1 text-sm text-slate-600">
-            SMS sending is not connected yet, so the OTP does not reach the phone. Tell the person this code by call or message. When they enter it, their password is cleared and they are signed in. It expires in 10 minutes.
+            These were also sent to the person by SMS. If the SMS did not reach them, tell them this code by call or message. When they enter it, their password is cleared and they are signed in. It expires in 10 minutes.
           </p>
           <ul className="mt-2 divide-y divide-amber-200/70">
             {otps.map((o) => (

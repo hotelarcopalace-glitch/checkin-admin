@@ -102,7 +102,7 @@ export default function BuildLoginForm() {
         <div>
           <h2 className="text-base font-semibold text-amber-900">Enter the OTP</h2>
           <p className="mt-1 text-sm text-amber-900/60">
-            An OTP was made for <strong>{username.trim()}</strong>. SMS is not connected yet, so ask the admin for the code. It is valid for 10 minutes.
+            We sent an OTP to the mobile number saved for <strong>{username.trim()}</strong>. It is valid for 10 minutes. If it does not arrive, ask the admin for the code.
           </p>
         </div>
         <label className="flex flex-col gap-1.5">

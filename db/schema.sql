@@ -202,3 +202,13 @@ CREATE TABLE IF NOT EXISTS build_otps (
 );
 
 CREATE INDEX IF NOT EXISTS build_otps_user_idx ON build_otps (username, created_at DESC);
+
+-- What the SMS gateway answered for each OTP text we sent (never holds the login details).
+CREATE TABLE IF NOT EXISTS sms_gateway_log (
+  id         BIGSERIAL PRIMARY KEY,
+  mobile     TEXT        NOT NULL,
+  purpose    TEXT        NOT NULL,
+  ok         BOOLEAN     NOT NULL,
+  detail     TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
