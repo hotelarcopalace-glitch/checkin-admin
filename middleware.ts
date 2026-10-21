@@ -8,6 +8,15 @@ import { BUILD_COOKIE, verifyBuildToken } from "@/lib/build-auth";
 const ADMIN_BASE = "/mng-x7k9";
 const ADMIN_LOGIN = "/mng-x7k9/login";
 
+// Redirects must go to the public address. Behind nginx the app only sees 127.0.0.1:3000 as its own
+// origin, so a redirect cloned from req.nextUrl would send visitors to localhost.
+function redirectTo(req: NextRequest, pathname: string, search = "") {
+  const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  const base = process.env.SITE_URL || (host ? `${proto}://${host}` : req.nextUrl.origin);
+  return NextResponse.redirect(new URL(pathname + search, base));
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
@@ -19,10 +28,7 @@ export async function middleware(req: NextRequest) {
     if (pathname !== "/build/login" && !isAsset) {
       const build = await verifyBuildToken(req.cookies.get(BUILD_COOKIE)?.value);
       if (!build) {
-        const url = req.nextUrl.clone();
-        url.pathname = "/build/login";
-        url.search = "";
-        return NextResponse.redirect(url);
+        return redirectTo(req, "/build/login");
       }
     }
     return NextResponse.next();
@@ -33,18 +39,12 @@ export async function middleware(req: NextRequest) {
   // Protect the whole admin area except its own login page.
   const inAdmin = pathname === ADMIN_BASE || pathname.startsWith(ADMIN_BASE + "/");
   if (inAdmin && pathname !== ADMIN_LOGIN && !session) {
-    const url = req.nextUrl.clone();
-    url.pathname = ADMIN_LOGIN;
-    url.search = `?next=${encodeURIComponent(pathname + search)}`;
-    return NextResponse.redirect(url);
+    return redirectTo(req, ADMIN_LOGIN, `?next=${encodeURIComponent(pathname + search)}`);
   }
 
   // Already signed in and hitting the login page -> go to dashboard.
   if (pathname === ADMIN_LOGIN && session) {
-    const url = req.nextUrl.clone();
-    url.pathname = ADMIN_BASE;
-    url.search = "";
-    return NextResponse.redirect(url);
+    return redirectTo(req, ADMIN_BASE);
   }
 
   // Guest area. /user renders its own bottom-sheet login when logged out, so we
@@ -53,10 +53,7 @@ export async function middleware(req: NextRequest) {
   if (pathname === "/user/login") {
     const user = await verifyUserToken(req.cookies.get(USER_COOKIE)?.value);
     if (user) {
-      const url = req.nextUrl.clone();
-      url.pathname = "/user";
-      url.search = "";
-      return NextResponse.redirect(url);
+      return redirectTo(req, "/user");
     }
     return NextResponse.next();
   }
