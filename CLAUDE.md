@@ -25,9 +25,7 @@ already a MySQL error page when the snapshot was taken.
 | --- | --- |
 | Site | https://checkin.co.in — admin at `/mng-x7k9` (`/admin` just redirects home) |
 | Server | **Linode** `checkin-prod`, Mumbai 2, Ubuntu 24.04, 2 GB, IP `172.236.182.160` (moved here from Netlify on 21 Oct 2026) |
-| Old host | https://checkin-admin-cs.netlify.app (Netlify, no longer serves the domain; to be downgraded/deleted) |
 | Repo | https://github.com/checkinsoftware/checkin-admin (**private**, standalone, no longer a fork) |
-| Netlify project | `checkin-admin-cs`, team Checkinwebsite, Pro plan (old; see Infrastructure) |
 
 Hosting moved from Vercel to Netlify on 30 Sep 2026 (the Vercel projects are gone), then from
 Netlify to a Linode server on 21 Oct 2026 (Netlify credits made it too costly).
@@ -61,17 +59,16 @@ put the new `ADMIN_USERNAME` / `ADMIN_PASSWORD_HASH` into that env file and `sud
 - **Database copy history:** data was copied from Netlify's Postgres on 21 Oct 2026 (sms_messages 43,945 rows from
   Netlify, ids below 1,000,000; Linode ids started at 1,043,142 so new rows never clash).
 
-### Old: Netlify
-- Netlify (`checkin-admin-cs`) no longer serves the domain but still holds the old database and a temporary
-  admin-only route `/api/admin/export-all` that was used for the copy. **Delete that deployment or the project
-  soon** (or redeploy a clean `main` with a fresh `NETLIFY_AUTH_TOKEN`; tokens expire after 7 days). The Netlify
-  GitHub link only creates "Pending Review" builds and never deployed anything.
-- `netlify.toml` redirects (`/sms`, `/welcome`) are Netlify-only; on Linode the same rewrites come from
-  `next.config.ts`. `lib/db.ts` still accepts `NETLIFY_DB_URL`, which is only useful on Netlify.
+### Old: Netlify (gone)
+- The Netlify project `checkin-admin-cs` (and with it the old database and the temporary
+  `/api/admin/export-all` route used for the copy) was **deleted on 22 Oct 2026**. The team Checkinwebsite
+  is on a scheduled downgrade to Free (2 Nov 2026). Do not recreate it: `netlify.toml` and the
+  `NETLIFY_DB_URL` fallback in `lib/db.ts` are only left over from that time. The same `/sms` and `/welcome`
+  rewrites that `netlify.toml` repeated are served by `next.config.ts` on Linode.
 - **Domain:** checkin.co.in is registered at **GoDaddy** (nameservers `domaincontrol.com`).
   There is no GoDaddy API access here; DNS edits are manual, done by the owner.
-  `A @` -> 172.236.182.160 and `CNAME www` -> checkin.co.in since 21 Oct 2026. Two `_acme-challenge` TXT records
-  from the first certificate are still there and can be deleted.
+  `A @` -> 172.236.182.160 and `CNAME www` -> checkin.co.in since 21 Oct 2026. The temporary
+  `_acme-challenge` TXT records were deleted on 22 Oct 2026 (certificate renewal uses HTTP, not DNS).
 - The owner also has a **Hostinger** account (arcoautozone.in/.com, carspareparts.co.in,
   and a KVM 2 VPS running WordPress). Unrelated to this project — do not touch it.
 
@@ -106,12 +103,14 @@ asks for browser permission, gets an FCM token and stores it in `device_tokens`.
 `lib/sms-insert.ts` then pushes to every token on that number after each insert, logging
 outcomes to `notification_log`.
 
-`OTP_SKIP` is now **false** in Netlify (set 2 Oct 2026): codes are really verified and the
-code is never returned to the browser or shown on the site. There is no SMS gateway yet, so
-nobody receives it — admins read it from the Web Users page and pass it on; guests can
-also log in with a password (admin can create accounts with one) or a magic link. Setting
-`OTP_SKIP=true` again would re-open "any code works", so don't. When SMS sending is wired,
-`app/api/user/otp/send/route.ts` has the TODO where the code should be sent.
+`OTP_SKIP` is **false** (set 2 Oct 2026): codes are really verified and the code is never returned
+to the browser or shown on the site. Setting `OTP_SKIP=true` again would re-open "any code works",
+so don't. Since 21 Oct 2026 the OTP is also **sent by SMS** through the Chartered Info gateway
+(`lib/sms-gateway.ts`, DLT template 1777179251415235321, header CHKIIN, login in `SMS_GATEWAY_ID` /
+`SMS_GATEWAY_PWD`), for guest login and for BuildKhata's "Forgot password". A failed send never blocks
+login: admins can still read the code on the Web Users page / BuildKhata users page, and
+`/api/admin/sms-gateway-log` shows what the gateway answered (balance problems show up there).
+Guests can also log in with a password (admin can create accounts with one) or a magic link.
 
 FCM uses the HTTP v1 API with a service account; `lib/fcm.ts` mints the Google OAuth token
 itself with `jose`, so `firebase-admin` is deliberately not a dependency. Dead tokens are
@@ -184,9 +183,7 @@ The database is **empty** — every demo and test row was cleared after testing.
 
 **Pending, in the owner's priority order:**
 
-1. **Real OTP sending.** The on-screen code is gone and `OTP_SKIP=false`, but the OTP is not
-   delivered to the guest at all yet (see above). The SMS vendor already calls `SMSInsert`, so
-   sending the OTP through the same gateway is the obvious route.
+1. ~~Real OTP sending~~ — done 21 Oct 2026 (see "Guest login and push").
 2. **The homepage Flash banner.** The 2023 site embeds `flash/checkin banner.swf`, which no
    browser can play, leaving a blank band on the homepage. The owner asked for a static
    image in its place; not done yet.
@@ -197,3 +194,12 @@ The database is **empty** — every demo and test row was cleared after testing.
 Also raised earlier: pulling logs directly from the SMS provider (MSG91/Textlocal/
 Fast2SMS/Twilio — not chosen), serving the same API on hotelarcopalace.com, and more admin
 pages (bookings, guests, reports).
+
+## BuildKhata users (added 21-22 Oct 2026)
+
+BuildKhata (`/build`, APK at `/downloads/BuildKhata.apk`) has its own users in `build_users`
+(usernames, mobile number, `password_hash`). Admins add/switch off users and blank passwords at
+`/mng-x7k9/build-setup`. A **blank password** (`password_hash = ''`) signs in with an empty password; the app
+then asks for a new one. "Forgot your password?" sends an OTP to the saved mobile (table `build_otps`), and a
+right OTP clears the password and signs the user in. Do not press the old "Create tables + 5 users" button
+casually: it resets all five original passwords and re-activates switched-off users.
