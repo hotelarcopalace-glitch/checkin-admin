@@ -156,6 +156,11 @@ unauthenticated at the owner's request — only a 60/minute per-IP limit guards 
 - **Marketplace integrations need the owner to accept vendor terms in a browser.**
   `vercel integration add` fails until they do.
 - **Env var changes need a redeploy** (`vercel redeploy <url>`) to take effect.
+- **Netlify/Vercel "secret" env values cannot be read back by the CLI**: `netlify env:list` returned `********`
+  placeholders for them, which silently ended up in the server env file and made the SMS gateway answer
+  "Invalid User Id" (fixed 22 Oct 2026). When copying env vars between hosts, check no value starts with `*`.
+  The Chartered Info login (`SMS_GATEWAY_ID` / `SMS_GATEWAY_PWD`) now lives only in `/home/deploy/checkin.env`
+  (same login as the hotel PCs' `send_sms_config.txt`).
 - After a DNS change, browsers cache the old IP and certificate for a while — verify with
   `curl --resolve` before assuming something is broken.
 
