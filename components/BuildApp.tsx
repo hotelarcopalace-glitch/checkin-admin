@@ -2,20 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-
-type Project = { id: string; name: string; client: string; value: number | null };
-type Kind = "IN" | "MAT" | "LAB";
-type Entry = {
-  id: string;
-  projectId: string;
-  kind: Kind;
-  category: string;
-  amount: number;
-  date: string;
-  party: string;
-  note: string;
-  user: string;
-};
+import type { Entry, Kind, Party, PartyKind, Project } from "./build-shared";
+import { KHATA_CSS, PartiesView, PartyLedger, PartyPicker, PartySheet, UsersSheet } from "./build-khata";
 
 const MAT_CATS = ["Cement", "Steel / Sariya", "Bricks", "Sand / Gitti", "Tiles / Marble", "Electrical", "Plumbing", "Wood", "Paint", "Other"];
 const LAB_CATS = ["Mason / Mistri", "Helper / Beldar", "Contractor", "Tiles work", "Painting", "Plumbing", "Electrical work", "Other"];
@@ -74,7 +62,7 @@ function downloadText(filename: string, text: string, type = "text/csv;charset=u
 }
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 
-type View = { name: "projects" } | { name: "project"; id: string } | { name: "report"; pid?: string };
+type View = { name: "projects" } | { name: "project"; id: string } | { name: "khata" } | { name: "party"; id: string } | { name: "report"; pid?: string };
 type SheetState =
   | { kind: "entry"; type: Kind; projectId: string; editId?: string }
   | { kind: "project" }
@@ -82,6 +70,8 @@ type SheetState =
   | { kind: "user" }
   | { kind: "changepw" }
   | { kind: "setpw" }
+  | { kind: "party"; partyKind: PartyKind; editId?: string }
+  | { kind: "users" }
   | null;
 
 const KIND_WORD: Record<Kind, string> = { IN: "Payment", MAT: "Material", LAB: "Labour" };
@@ -92,6 +82,8 @@ export default function BuildApp({ meName }: { meName: string }) {
   const [loadErr, setLoadErr] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [view, setView] = useState<View>({ name: "projects" });
   const [sheet, setSheet] = useState<SheetState>(null);
   const askedPw = useRef(false);
@@ -104,6 +96,8 @@ export default function BuildApp({ meName }: { meName: string }) {
       if (!r.ok) { setLoadErr(j.error || "Could not load."); setLoading(false); return; }
       setProjects(j.projects || []);
       setEntries(j.entries || []);
+      setParties(j.parties || []);
+      setIsAdmin(j.me?.role === "admin");
       // Blank password: ask for a new one once, right after sign-in (not on every reload).
       if (j.me?.blankPassword && !askedPw.current) { askedPw.current = true; setSheet((s) => s ?? { kind: "setpw" }); }
       setLoading(false);
@@ -115,6 +109,21 @@ export default function BuildApp({ meName }: { meName: string }) {
 
   useEffect(() => { reload(); }, [reload]);
 
+  // A user who was switched off or removed gets a 401 from any BuildKhata call: send them to the login page.
+  useEffect(() => {
+    const orig = window.fetch;
+    window.fetch = async (...args: Parameters<typeof fetch>) => {
+      const r = await orig(...args);
+      try {
+        const a = args[0];
+        const u = typeof a === "string" ? a : a instanceof URL ? a.href : (a as Request).url;
+        if (r.status === 401 && u.includes("/api/build/") && !u.includes("/api/build/login") && !u.includes("/api/build/first-user")) router.replace("/build/login");
+      } catch { /* ignore */ }
+      return r;
+    };
+    return () => { window.fetch = orig; };
+  }, [router]);
+
   const entriesOf = useCallback((pid?: string) => (pid ? entries.filter((e) => e.projectId === pid) : entries), [entries]);
 
   async function logout() {
@@ -125,7 +134,7 @@ export default function BuildApp({ meName }: { meName: string }) {
   if (loading) {
     return (
       <div className="bk">
-        <style>{BK_CSS}</style>
+        <style>{BK_CSS + KHATA_CSS}</style>
         <div className="bk-load">Loading…</div>
       </div>
     );
@@ -133,9 +142,9 @@ export default function BuildApp({ meName }: { meName: string }) {
 
   return (
     <div className="bk">
-      <style>{BK_CSS}</style>
+      <style>{BK_CSS + KHATA_CSS}</style>
       <div className="app">
-        <Header view={view} setView={setView} meName={meName} openUser={() => setSheet({ kind: "user" })} projects={projects} editProject={(id) => setSheet({ kind: "editProject", id })} />
+        <Header view={view} setView={setView} meName={meName} openUser={() => setSheet({ kind: "user" })} projects={projects} editProject={(id) => setSheet({ kind: "editProject", id })} parties={parties} editParty={(id) => { const pt = parties.find((x) => x.id === id); if (pt) setSheet({ kind: "party", partyKind: pt.kind, editId: id }); }} />
         <main>
           {loadErr && <div className="empty" style={{ color: "var(--out)" }}>{loadErr}</div>}
           {view.name === "projects" && (
@@ -143,6 +152,12 @@ export default function BuildApp({ meName }: { meName: string }) {
           )}
           {view.name === "project" && (
             <ProjectView project={projects.find((p) => p.id === view.id)} list={entriesOf(view.id)} openEntry={(type, editId) => setSheet({ kind: "entry", type, projectId: view.id, editId })} editProject={() => setSheet({ kind: "editProject", id: view.id })} />
+          )}
+          {view.name === "khata" && (
+            <PartiesView parties={parties} entries={entries} onOpen={(id) => setView({ name: "party", id })} onAdd={(k) => setSheet({ kind: "party", partyKind: k })} />
+          )}
+          {view.name === "party" && (
+            <PartyLedger party={parties.find((x) => x.id === view.id)} entries={entries} projects={projects} onEdit={() => { const pt = parties.find((x) => x.id === view.id); if (pt) setSheet({ kind: "party", partyKind: pt.kind, editId: pt.id }); }} />
           )}
           {view.name === "report" && (
             <ReportView projects={projects} entries={entries} pid={view.pid || ""} setPid={(pid) => setView({ name: "report", pid })} entriesOf={entriesOf} />
@@ -152,13 +167,29 @@ export default function BuildApp({ meName }: { meName: string }) {
           <button className={view.name === "projects" || view.name === "project" ? "on" : ""} onClick={() => setView({ name: "projects" })}>
             <span className="ic">🏗</span>Projects
           </button>
+          <button className={view.name === "khata" || view.name === "party" ? "on" : ""} onClick={() => setView({ name: "khata" })}>
+            <span className="ic">🧾</span>Khata
+          </button>
           <button className={view.name === "report" ? "on" : ""} onClick={() => setView({ name: "report" })}>
             <span className="ic">📊</span>Reports
           </button>
         </nav>
       </div>
 
-      {sheet?.kind === "user" && <UserSheet meName={meName} onClose={() => setSheet(null)} onLogout={logout} onChangePw={() => setSheet({ kind: "changepw" })} />}
+      {sheet?.kind === "user" && <UserSheet meName={meName} isAdmin={isAdmin} onClose={() => setSheet(null)} onLogout={logout} onChangePw={() => setSheet({ kind: "changepw" })} onUsers={() => setSheet({ kind: "users" })} />}
+      {sheet?.kind === "users" && <UsersSheet onClose={() => setSheet(null)} />}
+      {sheet?.kind === "party" && (
+        <PartySheet
+          kind={sheet.partyKind}
+          party={sheet.editId ? parties.find((x) => x.id === sheet.editId) : undefined}
+          onClose={() => setSheet(null)}
+          onSaved={(pt) => {
+            setParties((x) => (x.some((q) => q.id === pt.id) ? x.map((q) => (q.id === pt.id ? pt : q)) : [...x, pt]));
+            if (sheet.editId) setEntries((x) => x.map((e) => (e.partyId === pt.id ? { ...e, party: pt.name } : e)));
+            setSheet(null);
+          }}
+        />
+      )}
       {sheet?.kind === "changepw" && <ChangePwSheet meName={meName} onClose={() => setSheet(null)} onDone={() => setSheet(null)} />}
       {sheet?.kind === "setpw" && <ChangePwSheet blank meName={meName} onClose={() => setSheet(null)} onDone={() => setSheet(null)} />}
       {sheet?.kind === "project" && <ProjectSheet onClose={() => setSheet(null)} onSaved={(p) => { setProjects((x) => [...x, p]); setSheet(null); setView({ name: "project", id: p.id }); }} />}
@@ -175,6 +206,7 @@ export default function BuildApp({ meName }: { meName: string }) {
         <EntrySheet
           sheet={sheet}
           entry={sheet.editId ? entries.find((e) => e.id === sheet.editId) : undefined}
+          parties={parties}
           meName={meName}
           onClose={() => setSheet(null)}
           onSaved={() => { setSheet(null); reload(); }}
@@ -184,7 +216,20 @@ export default function BuildApp({ meName }: { meName: string }) {
   );
 }
 
-function Header({ view, setView, meName, openUser, projects, editProject }: { view: View; setView: (v: View) => void; meName: string; openUser: () => void; projects: Project[]; editProject: (id: string) => void }) {
+function Header({ view, setView, meName, openUser, projects, editProject, parties, editParty }: { view: View; setView: (v: View) => void; meName: string; openUser: () => void; projects: Project[]; editProject: (id: string) => void; parties: Party[]; editParty: (id: string) => void }) {
+  if (view.name === "party") {
+    const pt = parties.find((x) => x.id === view.id);
+    return (
+      <header>
+        <button className="hbtn" onClick={() => setView({ name: "khata" })}>‹</button>
+        <div className="grow">
+          <div className="htitle">{pt?.name}</div>
+          <div className="sub">{pt?.kind === "LAB" ? "Labour khata" : "Supplier khata"}</div>
+        </div>
+        <button className="hbtn" aria-label="Edit name" onClick={() => editParty(view.id)}>✎</button>
+      </header>
+    );
+  }
   if (view.name === "project") {
     const p = projects.find((x) => x.id === view.id);
     return (
@@ -202,7 +247,7 @@ function Header({ view, setView, meName, openUser, projects, editProject }: { vi
     <header>
       <div className="grow">
         <div className="wm">📒 BuildKhata</div>
-        <div className="sub">{view.name === "report" ? "Reports & totals" : "Builder expense book"}</div>
+        <div className="sub">{view.name === "report" ? "Reports & totals" : view.name === "khata" ? "Suppliers & labour" : "Builder expense book"}</div>
       </div>
       <button className="userchip" onClick={openUser}>
         <span className="ava sm">{meName[0]}</span>
@@ -540,12 +585,13 @@ function Scrim({ children, onClose }: { children: React.ReactNode; onClose: () =
   return <div className="scrim" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}><div className="sheet">{children}</div></div>;
 }
 
-function UserSheet({ meName, onClose, onLogout, onChangePw }: { meName: string; onClose: () => void; onLogout: () => void; onChangePw: () => void }) {
+function UserSheet({ meName, isAdmin, onClose, onLogout, onChangePw, onUsers }: { meName: string; isAdmin: boolean; onClose: () => void; onLogout: () => void; onChangePw: () => void; onUsers: () => void }) {
   return (
     <Scrim onClose={onClose}>
       <div className="grab" />
       <h2>Account</h2>
-      <div className="userrow"><span className="ava">{meName[0]}</span><div><div style={{ fontWeight: 600 }}>{meName}</div><div className="faint" style={{ fontSize: 12 }}>Signed in</div></div></div>
+      <div className="userrow"><span className="ava">{meName[0]}</span><div><div style={{ fontWeight: 600 }}>{meName}</div><div className="faint" style={{ fontSize: 12 }}>{isAdmin ? "Admin" : "Signed in"}</div></div></div>
+      {isAdmin && <button className="btn ghost" style={{ width: "100%", marginTop: 14 }} onClick={onUsers}>👥 Manage users</button>}
       <button className="btn ghost" style={{ width: "100%", marginTop: 14 }} onClick={onChangePw}>🔑 Change password</button>
       <div className="srow">
         <button className="btn ghost" onClick={onClose}>Close</button>
@@ -699,7 +745,7 @@ function ProjectEditSheet({ project, entryCount, onClose, onSaved, onDeleted }: 
   );
 }
 
-function EntrySheet({ sheet, entry, meName, onClose, onSaved }: { sheet: { type: Kind; projectId: string; editId?: string }; entry?: Entry; meName: string; onClose: () => void; onSaved: () => void }) {
+function EntrySheet({ sheet, entry, parties, meName, onClose, onSaved }: { sheet: { type: Kind; projectId: string; editId?: string }; entry?: Entry; parties: Party[]; meName: string; onClose: () => void; onSaved: () => void }) {
   const M = TMETA[sheet.type];
   const cats = sheet.type === "IN" ? MODES : sheet.type === "MAT" ? MAT_CATS : LAB_CATS;
   const today = new Date().toISOString().slice(0, 10);
@@ -707,6 +753,7 @@ function EntrySheet({ sheet, entry, meName, onClose, onSaved }: { sheet: { type:
   const [category, setCategory] = useState(entry?.category || "");
   const [date, setDate] = useState(entry?.date || today);
   const [party, setParty] = useState(entry?.party || "");
+  const [partyId, setPartyId] = useState(entry?.partyId || "");
   const [note, setNote] = useState(entry?.note || "");
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
@@ -715,7 +762,7 @@ function EntrySheet({ sheet, entry, meName, onClose, onSaved }: { sheet: { type:
     const amt = parseFloat((amount || "").replace(/[^0-9.]/g, ""));
     if (!amt || amt <= 0) { setErr("Enter an amount greater than 0."); return; }
     setBusy(true); setErr("");
-    const body: Record<string, unknown> = { amount: amt, category, date, party, note };
+    const body: Record<string, unknown> = { amount: amt, category, date, party, partyId, note };
     if (sheet.editId) body.id = sheet.editId;
     else { body.projectId = sheet.projectId; body.kind = sheet.type; }
     try {
@@ -740,7 +787,11 @@ function EntrySheet({ sheet, entry, meName, onClose, onSaved }: { sheet: { type:
       <div className="field"><label>Amount (₹)</label><input className="amt-in tnum" inputMode="numeric" value={amount} onChange={(e) => { setAmount(e.target.value); setErr(""); }} placeholder="0" /></div>
       <div className="field"><label>{M.catLabel}</label><input list={listId} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Choose or type…" /><datalist id={listId}>{cats.map((c) => <option key={c} value={c} />)}</datalist></div>
       <div className="field"><label>Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-      <div className="field"><label>{M.partyLabel}</label><input value={party} onChange={(e) => setParty(e.target.value)} placeholder="Name" /></div>
+      {sheet.type === "IN" ? (
+        <div className="field"><label>{M.partyLabel}</label><input value={party} onChange={(e) => setParty(e.target.value)} placeholder="Name" /></div>
+      ) : (
+        <PartyPicker kind={sheet.type === "MAT" ? "SUP" : "LAB"} parties={parties} partyId={partyId} text={party} onChange={(id, t) => { setPartyId(id); setParty(t); }} />
+      )}
       <div className="field"><label>Note (optional)</label><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. 200 bag @ 360" /></div>
       {err && <div className="err show">{err}</div>}
       <div className="srow">

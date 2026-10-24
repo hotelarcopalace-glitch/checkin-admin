@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { currentBuildUser } from "@/lib/build-auth";
-import { createEntry, updateEntry, deleteEntry, isKind } from "@/lib/build";
+import { createEntry, updateEntry, deleteEntry, entryKind, isKind, liveBuildUser, resolveEntryParty } from "@/lib/build";
 
 export const runtime = "nodejs";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function POST(req: Request) {
-  const me = await currentBuildUser();
+  const me = await liveBuildUser();
   if (!me) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   let b: Record<string, unknown>;
@@ -20,7 +19,8 @@ export async function POST(req: Request) {
   const amount = Number(b.amount);
   const date = String(b.date ?? "");
   const category = String(b.category ?? "").trim();
-  const party = String(b.party ?? "").trim();
+  const partyText = String(b.party ?? "").trim();
+  const partyId = /^\d+$/.test(String(b.partyId ?? "")) ? String(b.partyId) : "";
   const note = String(b.note ?? "").trim();
   if (!Number.isFinite(amount) || amount <= 0) {
     return NextResponse.json({ error: "Amount must be greater than 0." }, { status: 400 });
@@ -32,7 +32,11 @@ export async function POST(req: Request) {
   const editId = b.id ? String(b.id) : "";
   try {
     if (editId) {
-      const entry = await updateEntry(editId, { category, amount, date, party, note });
+      const kind = await entryKind(editId);
+      if (!kind) return NextResponse.json({ error: "Entry not found." }, { status: 404 });
+      const p = await resolveEntryParty(kind, partyId, partyText);
+      if ("error" in p) return NextResponse.json({ error: p.error }, { status: 400 });
+      const entry = await updateEntry(editId, { category, amount, date, party: p.party, partyId: p.partyId, note });
       if (!entry) return NextResponse.json({ error: "Entry not found." }, { status: 404 });
       return NextResponse.json({ ok: true, entry });
     }
@@ -41,7 +45,9 @@ export async function POST(req: Request) {
     if (!projectId || !isKind(kind)) {
       return NextResponse.json({ error: "Project and type are required." }, { status: 400 });
     }
-    const entry = await createEntry({ projectId, kind, category, amount, date, party, note, user: me.name });
+    const p = await resolveEntryParty(kind, partyId, partyText);
+    if ("error" in p) return NextResponse.json({ error: p.error }, { status: 400 });
+    const entry = await createEntry({ projectId, kind, category, amount, date, party: p.party, partyId: p.partyId, note, user: me.name });
     return NextResponse.json({ ok: true, entry });
   } catch {
     return NextResponse.json({ error: "Could not save the entry." }, { status: 500 });
@@ -49,7 +55,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const me = await currentBuildUser();
+  const me = await liveBuildUser();
   if (!me) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });

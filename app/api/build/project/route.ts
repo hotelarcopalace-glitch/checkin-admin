@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentBuildUser } from "@/lib/build-auth";
-import { createProject, updateProject, deleteProject } from "@/lib/build";
+import { createProject, updateProject, deleteProject, liveBuildUser } from "@/lib/build";
 
 export const runtime = "nodejs";
 
@@ -13,7 +12,7 @@ function parseValue(raw: unknown): number | null | "bad" {
 }
 
 export async function POST(req: Request) {
-  const me = await currentBuildUser();
+  const me = await liveBuildUser();
   if (!me) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   let name = "";
@@ -39,7 +38,7 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const me = await currentBuildUser();
+  const me = await liveBuildUser();
   if (!me) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   let id = "";
@@ -69,7 +68,7 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const me = await currentBuildUser();
+  const me = await liveBuildUser();
   if (!me) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });

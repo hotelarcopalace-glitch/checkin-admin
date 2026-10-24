@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { currentBuildUser } from "@/lib/build-auth";
-import { changeBuildPassword } from "@/lib/build";
+import { changeBuildPassword, liveBuildUser } from "@/lib/build";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
-  const me = await currentBuildUser();
+  const me = await liveBuildUser();
   if (!me) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   let current = "";

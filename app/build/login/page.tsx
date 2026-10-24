@@ -1,12 +1,15 @@
 import { redirect } from "next/navigation";
-import { currentBuildUser } from "@/lib/build-auth";
+import { countBuildUsers, liveBuildUser } from "@/lib/build";
 import BuildLoginForm from "@/components/BuildLoginForm";
 
 export const metadata = { title: "Login · BuildKhata" };
+export const dynamic = "force-dynamic";
 
 export default async function BuildLoginPage() {
-  const me = await currentBuildUser();
+  const me = await liveBuildUser();
   if (me) redirect("/build");
+  // With no users at all the first account is created here and becomes the admin.
+  const firstRun = await countBuildUsers().then((n) => n === 0).catch(() => false);
   return (
     <main className="min-h-screen bg-amber-50/60 px-4 py-14">
       <div className="mx-auto w-full max-w-sm">
@@ -16,7 +19,7 @@ export default async function BuildLoginPage() {
           <p className="mt-1 text-sm text-amber-900/60">Builder project expense book</p>
         </div>
         <div className="rounded-2xl border border-amber-200 bg-white p-6 shadow-sm">
-          <BuildLoginForm />
+          <BuildLoginForm firstRun={firstRun} />
         </div>
       </div>
     </main>

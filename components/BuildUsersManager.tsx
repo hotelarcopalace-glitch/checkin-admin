@@ -7,6 +7,7 @@ type U = {
   id: string;
   username: string;
   name: string;
+  role: "admin" | "staff";
   mobile: string | null;
   active: boolean;
   hasPassword: boolean;
@@ -187,6 +188,11 @@ export default function BuildUsersManager() {
                     <tr key={u.id} className={`border-b border-slate-100 last:border-0 ${u.active ? "" : "opacity-55"}`}>
                       <td className="px-2 py-3 font-medium text-slate-800">
                         {editing ? <input value={editName} onChange={(e) => setEditName(e.target.value)} className={field} aria-label="Name" /> : u.name}
+                        {!editing && (
+                          <span className={`ml-2 rounded-full px-2 py-0.5 text-[10.5px] font-bold ${u.role === "admin" ? "bg-amber-100 text-amber-800" : "bg-sky-100 text-sky-800"}`}>
+                            {u.role === "admin" ? "Admin" : "Staff"}
+                          </span>
+                        )}
                       </td>
                       <td className="px-2 py-3 text-slate-600">{u.username}</td>
                       <td className="px-2 py-3 text-slate-600">
@@ -216,6 +222,11 @@ export default function BuildUsersManager() {
                           ) : (
                             <>
                               <button onClick={() => startEdit(u)} className={ghost}>Edit</button>
+                              {u.active && (
+                                <button disabled={busy} onClick={() => call("PATCH", { id: u.id, role: u.role === "admin" ? "staff" : "admin" }, `${u.username} is now ${u.role === "admin" ? "staff" : "admin"}.`)} className={ghost}>
+                                  {u.role === "admin" ? "Make staff" : "Make admin"}
+                                </button>
+                              )}
                               {u.active && <button disabled={busy} onClick={() => blank(u)} className={ghost}>Blank password</button>}
                               <button
                                 disabled={busy}

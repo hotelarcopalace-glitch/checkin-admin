@@ -17,7 +17,12 @@ async function post(url: string, body: unknown) {
   return { ok: r.ok, j };
 }
 
-export default function BuildLoginForm() {
+export default function BuildLoginForm({ firstRun = false }: { firstRun?: boolean }) {
+  if (firstRun) return <FirstUserForm />;
+  return <LoginFlow />;
+}
+
+function LoginFlow() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("login");
   const [username, setUsername] = useState("");
@@ -165,6 +170,66 @@ export default function BuildLoginForm() {
       <button type="button" onClick={() => go("user")} className={linkBtn}>
         Forgot your password?
       </button>
+    </form>
+  );
+}
+
+// Shown only while the app has no users: the first account becomes the admin and is signed in at once.
+function FirstUserForm() {
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [password, setPassword] = useState("");
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return setErr("Enter your name.");
+    if (!username.trim()) return setErr("Choose a username.");
+    if (!mobile.trim()) return setErr("Enter your mobile number.");
+    if (password.length < 4) return setErr("The password must be at least 4 characters.");
+    setErr("");
+    setBusy(true);
+    try {
+      const { ok, j } = await post("/api/build/first-user", { name, username, mobile, password });
+      if (ok) return router.replace("/build");
+      setErr(j.error || "Could not create the account.");
+      if (/already has users/i.test(j.error || "")) setTimeout(() => router.refresh(), 1200);
+    } catch {
+      setErr("Network error. Try again.");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <div>
+        <h2 className="text-base font-semibold text-amber-900">Welcome</h2>
+        <p className="mt-1 text-sm text-amber-900/60">
+          No one has an account yet. The first account you create here is the <strong>admin</strong>, who can add everyone else from inside the app.
+        </p>
+      </div>
+      <label className="flex flex-col gap-1.5">
+        <span className={label}>Your name</span>
+        <input id="first-name" value={name} onChange={(e) => setName(e.target.value)} className={input} />
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className={label}>Username</span>
+        <input id="first-username" value={username} onChange={(e) => setUsername(e.target.value)} autoCapitalize="none" autoCorrect="off" className={input} />
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className={label}>Mobile number</span>
+        <input id="first-mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} inputMode="tel" className={input} />
+        <span className="text-xs text-amber-900/50">Used to send the forgot-password OTP.</span>
+      </label>
+      <label className="flex flex-col gap-1.5">
+        <span className={label}>Password</span>
+        <input id="first-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" className={input} />
+      </label>
+      {err && <p className="text-sm text-red-600">{err}</p>}
+      <button type="submit" disabled={busy} className={primary}>{busy ? "Creating…" : "Create admin account"}</button>
     </form>
   );
 }

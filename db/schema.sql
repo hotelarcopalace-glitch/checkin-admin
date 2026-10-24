@@ -212,3 +212,23 @@ CREATE TABLE IF NOT EXISTS sms_gateway_log (
   detail     TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- BuildKhata: admin / staff role; the first user created on an empty app is the admin.
+ALTER TABLE build_users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'staff';
+
+-- BuildKhata parties: suppliers (material) and labour names. Payments point at one, and the ledger is
+-- every entry with that party_id.
+CREATE TABLE IF NOT EXISTS build_parties (
+  id         BIGSERIAL PRIMARY KEY,
+  kind       TEXT        NOT NULL CHECK (kind IN ('SUP','LAB')),
+  name       TEXT        NOT NULL,
+  phone      TEXT,
+  note       TEXT,
+  active     BOOLEAN     NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS build_parties_kind_name_idx ON build_parties (kind, lower(name));
+
+ALTER TABLE build_entries ADD COLUMN IF NOT EXISTS party_id BIGINT REFERENCES build_parties(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS build_entries_party_idx ON build_entries (party_id);
