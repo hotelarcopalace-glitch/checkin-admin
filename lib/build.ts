@@ -307,10 +307,50 @@ export async function updateProject(id: string, name: string, client: string, va
   }
 }
 
-// Hard delete — build_entries has ON DELETE CASCADE, so the project's entries
-// go with it. The UI confirms (and states the entry count) before calling this.
-export async function deleteProject(id: string): Promise<void> {
-  await query("DELETE FROM build_projects WHERE id = $1", [id]);
+// "Deleting" a project in the app only hides it: archived = TRUE keeps the project and its entries in the
+// database. The Checkin admin panel lists hidden projects and can restore or erase them.
+export async function hideProject(id: string, by: string): Promise<void> {
+  await query("UPDATE build_projects SET archived = TRUE, hidden_at = NOW(), hidden_by = $2 WHERE id = $1", [id, by]);
+}
+
+export type HiddenProject = {
+  id: string;
+  name: string;
+  client: string;
+  entries: number;
+  received: number;
+  expense: number;
+  hiddenAt: string | null;
+  hiddenBy: string;
+};
+
+export async function listHiddenProjects(): Promise<HiddenProject[]> {
+  return query<HiddenProject>(
+    `SELECT p.id::text AS id, p.name, COALESCE(p.client,'') AS client,
+            count(e.id)::int AS entries,
+            COALESCE(sum(e.amount) FILTER (WHERE e.kind = 'IN'), 0)::float8 AS received,
+            COALESCE(sum(e.amount) FILTER (WHERE e.kind <> 'IN'), 0)::float8 AS expense,
+            p.hidden_at AS "hiddenAt", COALESCE(p.hidden_by,'') AS "hiddenBy"
+     FROM build_projects p LEFT JOIN build_entries e ON e.project_id = p.id
+     WHERE p.archived
+     GROUP BY p.id ORDER BY p.hidden_at DESC NULLS LAST, p.id DESC`
+  );
+}
+
+export async function restoreProject(id: string): Promise<boolean> {
+  const rows = await query("UPDATE build_projects SET archived = FALSE, hidden_at = NULL, hidden_by = NULL WHERE id = $1 AND archived RETURNING id", [id]);
+  return rows.length > 0;
+}
+
+/** Erases a HIDDEN project and, through ON DELETE CASCADE, all of its entries. Visible projects are never touched. */
+export async function purgeProject(id: string): Promise<{ name: string; entries: number } | null> {
+  const rows = await query<{ name: string; entries: number }>(
+    `WITH gone AS (DELETE FROM build_projects WHERE id = $1 AND archived RETURNING id, name),
+          n AS (SELECT count(*)::int AS entries FROM build_entries WHERE project_id = $1)
+     SELECT gone.name, n.entries FROM gone, n`,
+    [id]
+  );
+  return rows[0] ?? null;
 }
 
 const ENTRY_COLS =
@@ -318,7 +358,9 @@ const ENTRY_COLS =
 
 export async function listEntries(): Promise<BuildEntry[]> {
   return query<BuildEntry>(
-    `SELECT ${ENTRY_COLS} FROM build_entries ORDER BY entry_date DESC, id DESC`
+    `SELECT ${ENTRY_COLS} FROM build_entries
+     WHERE project_id IN (SELECT id FROM build_projects WHERE NOT archived)
+     ORDER BY entry_date DESC, id DESC`
   );
 }
 

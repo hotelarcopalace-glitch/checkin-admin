@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createProject, updateProject, deleteProject, liveBuildUser } from "@/lib/build";
+import { createProject, hideProject, updateProject, liveBuildUser } from "@/lib/build";
 
 export const runtime = "nodejs";
 
@@ -73,7 +73,7 @@ export async function DELETE(req: Request) {
   const id = new URL(req.url).searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
   try {
-    await deleteProject(id);
+    await hideProject(id, me.name);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Could not delete project." }, { status: 500 });

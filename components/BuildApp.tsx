@@ -733,7 +733,7 @@ function ProjectEditSheet({ project, entryCount, onClose, onSaved, onDeleted }: 
       ) : (
         <div className="delbox">
           <div style={{ fontSize: 13, color: "var(--out-ink)", marginBottom: 10 }}>
-            Pakka delete karein? <strong>{project.name}</strong> aur iski <strong>{entryCount}</strong> entries hamesha ke liye hat jaayengi.
+            Delete karein? <strong>{project.name}</strong> aur iski <strong>{entryCount}</strong> entries app se, totals aur khata se hat jaayengi. Kuch mitega nahi, admin panel se wapas laa sakte hain.
           </div>
           <div className="srow" style={{ marginTop: 0 }}>
             <button className="btn ghost" onClick={() => setConfirmDel(false)} disabled={busy}>Rehne do</button>

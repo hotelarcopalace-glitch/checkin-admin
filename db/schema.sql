@@ -232,3 +232,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS build_parties_kind_name_idx ON build_parties (
 
 ALTER TABLE build_entries ADD COLUMN IF NOT EXISTS party_id BIGINT REFERENCES build_parties(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS build_entries_party_idx ON build_entries (party_id);
+
+-- BuildKhata: deleting a project in the app only hides it (archived = TRUE). The admin panel lists hidden
+-- projects and can restore them or erase them for good.
+ALTER TABLE build_projects ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ;
+ALTER TABLE build_projects ADD COLUMN IF NOT EXISTS hidden_by TEXT;

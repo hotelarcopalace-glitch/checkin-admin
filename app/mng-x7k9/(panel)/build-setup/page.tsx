@@ -1,5 +1,6 @@
 import BuildSetupButton from "@/components/BuildSetupButton";
 import BuildUsersManager from "@/components/BuildUsersManager";
+import BuildHiddenProjects from "@/components/BuildHiddenProjects";
 
 export const metadata = { title: "BuildKhata setup" };
 
@@ -13,6 +14,10 @@ export default function BuildSetupPage() {
 
       <div className="mt-6">
         <BuildUsersManager />
+      </div>
+
+      <div className="mt-6">
+        <BuildHiddenProjects />
       </div>
 
       <h2 className="mt-10 text-base font-semibold text-slate-800">First-time setup</h2>
