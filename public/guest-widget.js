@@ -72,7 +72,7 @@
     "#ck-sms .clr{flex:none;height:42px;border:1.5px solid #E0952A;background:#fff;color:#8A4F08;font-size:.82rem;font-weight:700;cursor:pointer;padding:0 11px;border-radius:10px;line-height:1.2;box-shadow:0 1px 0 rgba(224,149,42,.25)}" +
     "#ck-sms .clr:active{background:#FBF4E8}" +
     "#ck-sms .card{background:#fff;border:1px solid #ecdfc6;border-radius:10px;padding:9px 11px;margin-bottom:7px;transition:box-shadow .3s,border-color .3s,background .3s}" +
-    "#ck-sms .card p{margin:0;font-size:var(--ck-mp,14px);color:#431016;line-height:1.4}" +
+    "#ck-sms .card p{margin:0;font-size:var(--ck-mp,14px);color:#431016;line-height:1.4;white-space:pre-line}" +
     "#ck-sms .card small{display:block;color:#a08a6e;font-size:var(--ck-dp,12px)}" +
     "#ck-sms .card .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}" +
     "#ck-sms .card .shr{border:none;background:none;color:#8A4F08;cursor:pointer;padding:6px 8px;margin:-6px -6px -6px 0;border-radius:8px;line-height:0}" +
