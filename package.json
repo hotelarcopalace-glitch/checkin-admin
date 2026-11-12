@@ -29,5 +29,11 @@
     "@types/react-dom": "^19.1.0",
     "tailwindcss": "^4.1.13",
     "typescript": "^5.7.2"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7",
+    "next": {
+      "postcss": "^8.5.33"
+    }
   }
 }
