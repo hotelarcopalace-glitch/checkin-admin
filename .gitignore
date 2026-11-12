@@ -21,3 +21,6 @@ deno.lock
 
 # Written by scripts/stamp-build.mjs on every build
 public/build-info.json
+
+# Copied from node_modules/zxing-wasm by scripts/copy-zxing.mjs (prebuild / predev)
+public/zxing/

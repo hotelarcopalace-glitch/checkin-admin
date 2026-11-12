@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/stamp-build.mjs",
+    "prebuild": "node scripts/stamp-build.mjs && node scripts/copy-zxing.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "db:setup": "node scripts/db-setup.mjs",
-    "gen:admin": "node scripts/gen-admin.mjs"
+    "gen:admin": "node scripts/gen-admin.mjs",
+    "predev": "node scripts/copy-zxing.mjs"
   },
   "dependencies": {
     "@netlify/database": "^2.0.1",
@@ -17,9 +18,9 @@
     "jose": "^5.9.6",
     "next": "^15.5.4",
     "pg": "^8.13.1",
-    "qr-scanner": "^1.4.2",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "zxing-wasm": "^3.1.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.13",

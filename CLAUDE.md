@@ -152,8 +152,14 @@ unauthenticated at the owner's request — only a 60/minute per-IP limit guards 
 Lets a receptionist scan a guest's Aadhaar QR with a **phone** and have the details land in
 checkin.exe's check-in screen (F8 there). Pieces:
 
-- `app/s/[code]/page.tsx` — the phone page `https://checkin.co.in/s/<code>`. Opens the back camera
-  (`qr-scanner` package), and posts the raw QR text to the API. It decodes nothing and keeps nothing.
+- `app/s/[code]/page.tsx` — the phone page `https://checkin.co.in/s/<code>`. Two ways to scan: the live
+  back camera (asked for at up to 2560x1440; the centre square of each frame is decoded) and a
+  "Photo lekar scan karein" button (`<input capture>`, the phone's own camera app at full resolution).
+  It posts the raw QR text to the API, decodes nothing into fields and keeps nothing.
+  Decoder is **`zxing-wasm`** (ZXing-C++). The first version used `qr-scanner` and could not read real
+  Aadhaar cards: on photos of two real cards it failed almost every attempt while ZXing read both every
+  time, so do not go back to it. The `.wasm` is served by us from `public/zxing/` (gitignored), copied
+  from `node_modules` by `scripts/copy-zxing.mjs` on `prebuild` / `predev`.
   `next.config.ts` gives `/s/*` its own `Permissions-Policy: camera=(self)`; every other page stays `camera=()`.
 - `app/api/ascan/[code]/route.ts` + `lib/aadhaar-relay.ts` — the relay. The text is held **only in
   this process's memory** for at most 90 seconds and deleted when the PC fetches it. Never in
@@ -164,7 +170,8 @@ checkin.exe's check-in screen (F8 there). Pieces:
   credential; only text shaped like an Aadhaar QR (old XML, or the all-digits secure QR) is accepted.
 - checkin.exe side: `D:\CHECKIN\AADHAR.PRG` (polls with `curl` about every 2 s while its scan box is open).
 
-Not verified yet: a real phone camera reading a real (dense) Aadhaar secure QR, and iPhone/Safari.
+Verified: the photo path with photos of two real cards (old XML QR), end to end through the relay.
+Not verified yet: the live camera on a real phone, the newer all-digits "secure QR", and iPhone/Safari.
 
 ## Gotchas learned the hard way
 
