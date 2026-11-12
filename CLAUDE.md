@@ -139,11 +139,32 @@ push · secure`) under the button for exactly this.
 | `POST /api/admin/clear-sms` | admin session | deletes every message; body must be `{"confirm":"DELETE"}` |
 | `POST /api/sms/log` | `SMS_API_KEY` | structured insert, 1–100 messages, full validation |
 | `GET\|POST /api/sms/SMSInsert` | **none — open** | vendor endpoint: `mobileNo` + `smsText`, returns `{code:0}` / `{code:1}` |
+| `POST /api/ascan/<code>` | pairing code | phone page posts the raw Aadhaar QR text for one hotel PC (see "Aadhaar QR relay") |
+| `GET /api/ascan/<code>` | pairing code | checkin.exe polls; returns the QR text once (`200 text/plain`) or `204` |
 
 `SMSInsert` is also served at `/api/sms/insert` and `/newadmin/api/sms/SMSInsert`;
 all three share `lib/sms-insert.ts`. It mirrors the contract of the owner's existing
 hotelarcopalace.com API so the SMS vendor needs no changes. It is deliberately
 unauthenticated at the owner's request — only a 60/minute per-IP limit guards it.
+
+## Aadhaar QR relay (added 12 Nov 2026)
+
+Lets a receptionist scan a guest's Aadhaar QR with a **phone** and have the details land in
+checkin.exe's check-in screen (F8 there). Pieces:
+
+- `app/s/[code]/page.tsx` — the phone page `https://checkin.co.in/s/<code>`. Opens the back camera
+  (`qr-scanner` package), and posts the raw QR text to the API. It decodes nothing and keeps nothing.
+  `next.config.ts` gives `/s/*` its own `Permissions-Policy: camera=(self)`; every other page stays `camera=()`.
+- `app/api/ascan/[code]/route.ts` + `lib/aadhaar-relay.ts` — the relay. The text is held **only in
+  this process's memory** for at most 90 seconds and deleted when the PC fetches it. Never in
+  Postgres, never logged: it is Aadhaar data and must not reach a backup. This relies on production
+  being a single `next start` process; a multi-instance host would need a shared store.
+- `<code>` is 12 characters (`A-Z` `2-9` without `O I 0 1`), generated once per hotel PC by
+  checkin.exe (file `AADHMOB_<COMPUTER>.TXT` in its data folder) with a crypto RNG. It is the only
+  credential; only text shaped like an Aadhaar QR (old XML, or the all-digits secure QR) is accepted.
+- checkin.exe side: `D:\CHECKIN\AADHAR.PRG` (polls with `curl` about every 2 s while its scan box is open).
+
+Not verified yet: a real phone camera reading a real (dense) Aadhaar secure QR, and iPhone/Safari.
 
 ## Gotchas learned the hard way
 

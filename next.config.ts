@@ -40,6 +40,16 @@ const nextConfig: NextConfig = {
         ],
       },
       { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
+      // The Aadhaar QR scan page (/s/<code>) is the one page that needs the camera, so it
+      // overrides the site-wide "camera=()" above. It is a private pairing link: no cache, no index.
+      {
+        source: "/s/:path*",
+        headers: [
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(), payment=()" },
+          { key: "Cache-Control", value: "no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ];
   },
   async redirects() {
