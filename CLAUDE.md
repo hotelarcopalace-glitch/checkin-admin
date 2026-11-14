@@ -171,6 +171,10 @@ checkin.exe's check-in screen (F8 there). Pieces:
   checkin.exe (file `AADHMOB_<COMPUTER>.TXT` in its data folder) with a crypto RNG. It is the only
   credential; only text shaped like an Aadhaar QR (old XML, or the all-digits secure QR) is accepted.
 - checkin.exe side: `D:\CHECKIN\AADHAR.PRG` (polls with `curl` about every 2 s while its scan box is open).
+- **Driving licence QR (added 14 Nov 2026).** The same page and relay also carry the QR on an Indian
+  driving licence (Sarathi e-DL / smart card): `Name:<name>,\nDLNo:<number>,\nDOB:<DD-MM-YYYY>` - only
+  those three fields exist in it. `looksLikeDlQr` in `lib/aadhaar-relay.ts` and `isIdQr` in the page
+  must stay in step with `DlParse` in `D:\CHECKIN\AADHAR.PRG`. Anything else is still refused (422).
 - **ID card photos (added 14 Nov 2026).** The same phone page has "Front photo" / "Back photo" buttons
   (the phone's own camera app). The page shrinks the picture to a JPEG of at most about 700 KB
   (1600 px, then 1280 / 1024 if still too big) and posts it to `app/api/aimg/[code]/route.ts`.

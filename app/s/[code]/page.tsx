@@ -22,9 +22,17 @@ import { useParams } from "next/navigation";
 const CODE_RE = /^[A-HJ-NP-Z2-9]{12}$/;
 const WASM_URL = "/zxing/zxing_reader.wasm";
 
-function isAadhaarQr(text: string) {
+/** Aadhaar (old XML or the all-digits secure QR) or a driving licence ("Name:..,DLNo:..,DOB:.."). */
+function isIdQr(text: string) {
   const t = text.trim();
-  return /PrintLetterBarcodeData/i.test(t) || /^\d{300,}$/.test(t);
+  if (/PrintLetterBarcodeData/i.test(t) || /^\d{300,}$/.test(t)) return true;
+  return (
+    t.length >= 20 &&
+    t.length <= 600 &&
+    !t.includes("<") &&
+    /(^|[^A-Za-z])DL\s*No\.?\s*[:=]/i.test(t) &&
+    /(^|[^A-Za-z])Name\s*[:=]/i.test(t)
+  );
 }
 
 type ZX = typeof import("zxing-wasm/reader");
@@ -161,7 +169,7 @@ export default function AadhaarScanPage() {
         setStatus({ kind: "already" });
         return;
       }
-      if (!isAadhaarQr(text)) {
+      if (!isIdQr(text)) {
         setStatus({ kind: "notaadhaar" });
         return;
       }
@@ -564,7 +572,7 @@ export default function AadhaarScanPage() {
   if (!valid) {
     return (
       <main style={box}>
-        <h1 style={{ fontSize: 20, margin: "24px 0 0" }}>Aadhaar QR Scan</h1>
+        <h1 style={{ fontSize: 20, margin: "24px 0 0" }}>Aadhaar / Driving Licence QR Scan</h1>
         <p style={{ textAlign: "center", lineHeight: 1.5 }}>
           Ye link sahi nahi hai. CHECKIN software me check-in screen par F8 dabakar jo link dikhta hai, wahi
           kholein.
@@ -597,7 +605,7 @@ export default function AadhaarScanPage() {
           text: `${status.side === "f" ? "Front" : "Back"} photo bhej diya ✓  Computer par dekhein`,
         };
       case "notaadhaar":
-        return { bg: "#b91c1c", text: "Ye Aadhaar ka QR nahi hai. Aadhaar card ka QR scan karein." };
+        return { bg: "#b91c1c", text: "Ye Aadhaar ya Driving Licence ka QR nahi hai. Unhi ka QR scan karein." };
       case "notfound":
         return { bg: "#b91c1c", text: "Photo me QR nahi mila. QR ko paas se, saaf aur seedha lekar dobara photo lein." };
       case "error":
@@ -618,7 +626,7 @@ export default function AadhaarScanPage() {
 
   return (
     <main style={box}>
-      <h1 style={{ fontSize: 20, margin: "4px 0 0" }}>Aadhaar QR Scan</h1>
+      <h1 style={{ fontSize: 20, margin: "4px 0 0" }}>Aadhaar / Driving Licence QR Scan</h1>
       <div style={{ fontSize: 13, opacity: 0.75 }}>Computer code: &hellip;{code.slice(-4)}</div>
 
       <div

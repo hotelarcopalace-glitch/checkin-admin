@@ -28,6 +28,21 @@ export function looksLikeAadhaarQr(text: string): boolean {
   return /^\d{300,}$/.test(text.trim());
 }
 
+/**
+ * True for the QR on an Indian driving licence (Sarathi e-DL / smart card):
+ *   Name:<name>,\nDLNo:<licence number>,\nDOB:<DD-MM-YYYY>
+ * checkin.exe reads the same three fields (AADHAR.PRG, DlParse).
+ */
+export function looksLikeDlQr(text: string): boolean {
+  if (text.length < 20 || text.length > 600 || text.includes("<")) return false;
+  return /(^|[^A-Za-z])DL\s*No\.?\s*[:=]/i.test(text) && /(^|[^A-Za-z])Name\s*[:=]/i.test(text);
+}
+
+/** The ID QRs the relay carries: Aadhaar (both formats) and driving licence. */
+export function looksLikeIdQr(text: string): boolean {
+  return looksLikeAadhaarQr(text) || looksLikeDlQr(text);
+}
+
 function sweep(now: number) {
   for (const [k, v] of store) if (now - v.at > TTL_MS) store.delete(k);
 }
