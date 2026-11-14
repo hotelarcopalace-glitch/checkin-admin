@@ -34,6 +34,7 @@ type Status =
   | { kind: "reading" }
   | { kind: "sending" }
   | { kind: "sent" }
+  | { kind: "already" }
   | { kind: "notaadhaar" }
   | { kind: "notfound" }
   | { kind: "error"; msg: string };
@@ -51,6 +52,10 @@ export default function AadhaarScanPage() {
   const trackRef = useRef<MediaStreamTrack | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "starting" });
   const [torch, setTorch] = useState<"none" | "off" | "on">("none");
+  // Zoom the phone camera offers (null = none). A small, lightly printed QR needs it: the
+  // camera cannot focus very close, so zooming is how the code gets enough pixels.
+  const [zoom, setZoom] = useState<{ min: number; max: number; value: number } | null>(null);
+  const [camInfo, setCamInfo] = useState("");
 
   /** Loads the decoder once (the .wasm is served from our own /zxing/). */
   const loadZx = useCallback(async (): Promise<ZX> => {
@@ -84,8 +89,12 @@ export default function AadhaarScanPage() {
   const handleText = useCallback(
     async (text: string) => {
       const last = lastRef.current;
-      // The same card stays in view for a moment: do not send it twice.
-      if (last && last.text === text && Date.now() - last.at < 15000) return;
+      // The same card stays in view for a moment: do not send it twice, but say so
+      // (silence here looked like "it is not scanning").
+      if (last && last.text === text && Date.now() - last.at < 12000) {
+        setStatus({ kind: "already" });
+        return;
+      }
       if (!isAadhaarQr(text)) {
         setStatus({ kind: "notaadhaar" });
         return;
@@ -121,22 +130,86 @@ export default function AadhaarScanPage() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     const canvas = document.createElement("canvas");
 
+    let frame = 0;
+    let startedAt = Date.now();
+    let lastDeep = 0;
+    let deepOk = true;
+
+    /** Draws part of a source into the canvas and decodes it. */
+    const tryRegion = async (
+      src: CanvasImageSource,
+      sx: number,
+      sy: number,
+      side: number,
+      out: number
+    ): Promise<string | null> => {
+      canvas.width = out;
+      canvas.height = out;
+      const g = canvas.getContext("2d", { willReadFrequently: true });
+      if (!g) return null;
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = "high";
+      g.drawImage(src, sx, sy, side, side, 0, 0, out, out);
+      return decode(g.getImageData(0, 0, out, out));
+    };
+
+    /**
+     * "Deep scan": a full-resolution still from the camera (ImageCapture.takePhoto, Android
+     * Chrome). Video frames are often only 720p-1080p, too coarse for a small or faint QR;
+     * the still is the sensor's full size. Used only after the video frames have failed for
+     * a few seconds, and at most every 3 seconds.
+     */
+    const deepScan = async (): Promise<string | null> => {
+      const IC = (window as unknown as { ImageCapture?: new (t: MediaStreamTrack) => { takePhoto(): Promise<Blob> } })
+        .ImageCapture;
+      const track = trackRef.current;
+      if (!IC || !track || !deepOk) return null;
+      try {
+        const bmp = await createImageBitmap(await new IC(track).takePhoto());
+        const side = Math.min(bmp.width, bmp.height);
+        const part = Math.round(side * 0.8);
+        const text = await tryRegion(
+          bmp,
+          Math.round((bmp.width - part) / 2),
+          Math.round((bmp.height - part) / 2),
+          part,
+          Math.min(part, 2600)
+        );
+        bmp.close?.();
+        return text;
+      } catch {
+        deepOk = false; // this phone/browser cannot do it: do not keep trying
+        return null;
+      }
+    };
+
     const tick = async () => {
       if (stopped) return;
       if (!busyRef.current && video.readyState >= 2 && video.videoWidth > 0) {
         busyRef.current = true;
         try {
-          // Centre square of the frame, at up to 1600px: the card is held in the middle,
-          // and a smaller area keeps each decode fast on a phone.
-          const side = Math.min(video.videoWidth, video.videoHeight);
-          const out = Math.min(side, 1600);
-          canvas.width = out;
-          canvas.height = out;
-          const g = canvas.getContext("2d", { willReadFrequently: true });
-          if (g) {
-            g.drawImage(video, (video.videoWidth - side) / 2, (video.videoHeight - side) / 2, side, side, 0, 0, out, out);
-            const text = await decode(g.getImageData(0, 0, out, out));
-            if (text && !stopped) await handleText(text);
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
+          const side = Math.min(vw, vh);
+          let text: string | null = null;
+          if (frame % 2 === 0) {
+            // whole centre square, shrunk to at most 1600px: fast, enough for an easy code
+            text = await tryRegion(video, (vw - side) / 2, (vh - side) / 2, side, Math.min(side, 1600));
+          } else {
+            // the middle 60% at the camera's own resolution (enlarged if that is small):
+            // every pixel the stream has goes to the code inside the guide square
+            const part = Math.round(side * 0.6);
+            text = await tryRegion(video, (vw - part) / 2, (vh - part) / 2, part, Math.max(part, Math.min(part * 2, 1400)));
+          }
+          frame++;
+          const now = Date.now();
+          if (!text && now - startedAt > 4000 && now - lastDeep > 3000) {
+            lastDeep = now;
+            text = await deepScan();
+          }
+          if (text && !stopped) {
+            await handleText(text);
+            startedAt = Date.now();
           }
         } catch {
           /* a failed frame is normal: try the next one */
@@ -144,7 +217,7 @@ export default function AadhaarScanPage() {
           busyRef.current = false;
         }
       }
-      if (!stopped) timer = setTimeout(tick, 250);
+      if (!stopped) timer = setTimeout(tick, 200);
     };
 
     (async () => {
@@ -152,7 +225,7 @@ export default function AadhaarScanPage() {
         void loadZx(); // start loading the decoder while the camera opens
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 2560 }, height: { ideal: 1440 } },
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
         });
         if (stopped) {
           stream.getTracks().forEach((t) => t.stop());
@@ -161,11 +234,23 @@ export default function AadhaarScanPage() {
         const track = stream.getVideoTracks()[0];
         trackRef.current = track;
         // Continuous autofocus and torch where the phone offers them (not in every browser's types).
-        const caps = (track.getCapabilities?.() ?? {}) as { focusMode?: string[]; torch?: boolean };
+        const caps = (track.getCapabilities?.() ?? {}) as {
+          focusMode?: string[];
+          torch?: boolean;
+          zoom?: { min: number; max: number; step?: number };
+        };
         if (caps.focusMode?.includes("continuous")) {
           track.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] }).catch(() => {});
         }
         if (caps.torch) setTorch("off");
+        if (caps.zoom && caps.zoom.max > caps.zoom.min) {
+          // Start at 2x where the phone allows it: the QR on a card is small.
+          const value = Math.min(caps.zoom.max, Math.max(caps.zoom.min, 2));
+          track.applyConstraints({ advanced: [{ zoom: value } as MediaTrackConstraintSet] }).catch(() => {});
+          setZoom({ min: caps.zoom.min, max: caps.zoom.max, value });
+        }
+        const st = track.getSettings?.() ?? {};
+        setCamInfo(st.width && st.height ? `${st.width}x${st.height}` : "");
         video.srcObject = stream;
         await video.play();
         setStatus({ kind: "scanning" });
@@ -225,6 +310,21 @@ export default function AadhaarScanPage() {
     }
   }, [torch]);
 
+  const changeZoom = useCallback(
+    async (delta: number) => {
+      const track = trackRef.current;
+      if (!track || !zoom) return;
+      const value = Math.min(zoom.max, Math.max(zoom.min, Math.round((zoom.value + delta) * 10) / 10));
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: value } as MediaTrackConstraintSet] });
+        setZoom({ ...zoom, value });
+      } catch {
+        /* zoom not available after all */
+      }
+    },
+    [zoom]
+  );
+
   const box: React.CSSProperties = {
     minHeight: "100dvh",
     background: "#111",
@@ -255,7 +355,7 @@ export default function AadhaarScanPage() {
       case "starting":
         return { bg: "#444", text: "Camera khul raha hai ..." };
       case "scanning":
-        return { bg: "#1d4ed8", text: "Aadhaar card ka QR chaukor ke beech me rakhein" };
+        return { bg: "#1d4ed8", text: "QR ko chaukor ke beech me, bada aur saaf rakhein" };
       case "nocamera":
         return { bg: "#b45309", text: "Camera nahi khula. Neeche 'Photo lekar scan karein' dabayein." };
       case "reading":
@@ -264,6 +364,8 @@ export default function AadhaarScanPage() {
         return { bg: "#b45309", text: "Computer ko bhej raha hai ..." };
       case "sent":
         return { bg: "#15803d", text: "Bhej diya ✓  Computer par detail dekhein" };
+      case "already":
+        return { bg: "#15803d", text: "Ye card abhi bheja ja chuka hai ✓  Agla card dikhayein" };
       case "notaadhaar":
         return { bg: "#b91c1c", text: "Ye Aadhaar ka QR nahi hai. Aadhaar card ka QR scan karein." };
       case "notfound":
@@ -343,13 +445,25 @@ export default function AadhaarScanPage() {
           </button>
         )}
       </div>
+      {zoom && (
+        <div style={{ width: "100%", maxWidth: 520, display: "flex", gap: 10, alignItems: "center" }}>
+          <button type="button" style={{ ...btn, flex: "0 0 84px" }} onClick={() => void changeZoom(-0.5)}>
+            Zoom &minus;
+          </button>
+          <div style={{ flex: 1, textAlign: "center", fontSize: 15 }}>Zoom {zoom.value.toFixed(1)}x</div>
+          <button type="button" style={{ ...btn, flex: "0 0 84px" }} onClick={() => void changeZoom(0.5)}>
+            Zoom +
+          </button>
+        </div>
+      )}
       <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(e) => void onPhoto(e)} style={{ display: "none" }} />
 
       <p style={{ maxWidth: 520, fontSize: 13, lineHeight: 1.5, opacity: 0.8, textAlign: "center", margin: 0 }}>
-        Pehle computer par check-in screen me F8 dabayein. QR poora, saaf aur achhi roshni me dikhe. Camera se na
-        padhe to &quot;Photo lekar scan karein&quot; dabakar QR ka paas se photo lein. Ye page kuch save nahi
-        karta: scan seedhe aapke hotel ke computer ko jata hai.
+        Pehle computer par check-in screen me F8 dabayein. QR chaukor ko lagbhag bhar de, saaf dikhe, us par
+        chamak na pade. Chhota ya halka QR na padhe to Zoom + dabayein, ya &quot;Photo lekar scan karein&quot;
+        se QR ka paas se photo lein. Ye page kuch save nahi karta: scan seedhe aapke hotel ke computer ko jata hai.
       </p>
+      {camInfo && <div style={{ fontSize: 11, opacity: 0.45 }}>camera {camInfo}</div>}
     </main>
   );
 }
