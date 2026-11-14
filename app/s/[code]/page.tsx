@@ -9,9 +9,11 @@ import { useParams } from "next/navigation";
  * camera at the QR on the guest's Aadhaar card, and the raw QR text is posted to
  * /api/ascan/<code>, where checkin.exe picks it up. Nothing is decoded into fields or kept here.
  *
- * Decoder: zxing-wasm (ZXing-C++). The first version used the `qr-scanner` package, which
- * could not read real Aadhaar cards (tested on photos of two cards: it failed on almost
- * every attempt, ZXing read both every time). Two ways to scan:
+ * Decoders: the phone's own BarcodeDetector where the browser has one (Android Chrome: the
+ * Play Services scanner, which copes with soft focus and faint print better than anything in
+ * JavaScript), then zxing-wasm (ZXing-C++) on the same picture. The first version used the
+ * `qr-scanner` package, which could not read real Aadhaar cards (tested on photos of two
+ * cards: it failed on almost every attempt, ZXing read both every time). Two ways to scan:
  *   - live camera, at the highest resolution the phone will give (Aadhaar QRs are dense);
  *   - "take a photo": the phone's own camera app, full resolution, for cards the live view
  *     cannot resolve.
@@ -26,6 +28,18 @@ function isAadhaarQr(text: string) {
 }
 
 type ZX = typeof import("zxing-wasm/reader");
+
+/** The browser's built-in barcode reader (not in TypeScript's DOM types). */
+type Detector = { detect(src: CanvasImageSource): Promise<Array<{ rawValue?: string }>> };
+type DetectorCtor = { new (o: { formats: string[] }): Detector; getSupportedFormats?: () => Promise<string[]> };
+
+/** ImageCapture: full-resolution stills from the live camera (Android Chrome). */
+type PhotoSize = { imageWidth: number; imageHeight: number };
+type Capture = {
+  takePhoto(s?: PhotoSize): Promise<Blob>;
+  getPhotoCapabilities(): Promise<{ imageWidth?: { max?: number }; imageHeight?: { max?: number } }>;
+};
+type CaptureCtor = new (t: MediaStreamTrack) => Capture;
 
 type Status =
   | { kind: "starting" }
@@ -55,7 +69,15 @@ export default function AadhaarScanPage() {
   // Zoom the phone camera offers (null = none). A small, lightly printed QR needs it: the
   // camera cannot focus very close, so zooming is how the code gets enough pixels.
   const [zoom, setZoom] = useState<{ min: number; max: number; value: number } | null>(null);
-  const [camInfo, setCamInfo] = useState("");
+  // Small diagnostic line at the bottom (resolution, lens, decoders, still size): what the
+  // hotel reads out to us when a card will not scan.
+  const [info, setInfo] = useState<{ cam?: string; lens?: string; engine?: string; photo?: string }>({});
+  // Back cameras of the phone. Some phones hand the browser the ultra-wide lens, which cannot
+  // focus on a card held close: "Camera badlein" steps through the others.
+  const [cams, setCams] = useState<string[]>([]);
+  const [camId, setCamId] = useState<string | null>(null);
+  const curCamRef = useRef<string | null>(null);
+  const nativeRef = useRef<Detector | null | undefined>(undefined); // undefined = not looked for yet
 
   /** Loads the decoder once (the .wasm is served from our own /zxing/). */
   const loadZx = useCallback(async (): Promise<ZX> => {
@@ -85,9 +107,46 @@ export default function AadhaarScanPage() {
     [loadZx]
   );
 
+  /** The browser's own QR reader, or null where there is none (iPhone, desktop Windows). */
+  const getNative = useCallback(async (): Promise<Detector | null> => {
+    if (nativeRef.current !== undefined) return nativeRef.current;
+    nativeRef.current = null;
+    try {
+      const BD = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
+      if (BD) {
+        const formats = BD.getSupportedFormats ? await BD.getSupportedFormats() : ["qr_code"];
+        if (formats.includes("qr_code")) nativeRef.current = new BD({ formats: ["qr_code"] });
+      }
+    } catch {
+      nativeRef.current = null;
+    }
+    return nativeRef.current;
+  }, []);
+
+  /** Reads the QR in a canvas: the phone's reader first, then ZXing on the same pixels. */
+  const decodeCanvas = useCallback(
+    async (canvas: HTMLCanvasElement): Promise<string | null> => {
+      const det = await getNative();
+      if (det) {
+        try {
+          const found = await det.detect(canvas);
+          const t = found.find((f) => f.rawValue)?.rawValue;
+          if (t) return t;
+        } catch {
+          /* the built-in reader failed on this picture: ZXing below */
+        }
+      }
+      const g = canvas.getContext("2d", { willReadFrequently: true });
+      if (!g) return null;
+      return decode(g.getImageData(0, 0, canvas.width, canvas.height));
+    },
+    [decode, getNative]
+  );
+
   /** A QR was read: check it, send it to the PC, show the result. */
   const handleText = useCallback(
-    async (text: string) => {
+    async (raw: string) => {
+      const text = raw.trim(); // the two decoders must give the same string for one card
       const last = lastRef.current;
       // The same card stays in view for a moment: do not send it twice, but say so
       // (silence here looked like "it is not scanning").
@@ -133,7 +192,10 @@ export default function AadhaarScanPage() {
     let frame = 0;
     let startedAt = Date.now();
     let lastDeep = 0;
-    let deepOk = true;
+    let deepFails = 0;
+    let deepCount = 0;
+    let capture: Capture | null = null;
+    let photoSize: PhotoSize | undefined;
 
     /** Draws part of a source into the canvas and decodes it. */
     const tryRegion = async (
@@ -150,7 +212,7 @@ export default function AadhaarScanPage() {
       g.imageSmoothingEnabled = true;
       g.imageSmoothingQuality = "high";
       g.drawImage(src, sx, sy, side, side, 0, 0, out, out);
-      return decode(g.getImageData(0, 0, out, out));
+      return decodeCanvas(canvas);
     };
 
     /**
@@ -158,16 +220,44 @@ export default function AadhaarScanPage() {
      * Chrome). Video frames are often only 720p-1080p, too coarse for a small or faint QR;
      * the still is the sensor's full size. Used only after the video frames have failed for
      * a few seconds, and at most every 3 seconds.
+     *
+     * The still's size must be asked for: left alone, Chrome may return one no bigger than
+     * the video frame, which gains nothing. Capped at about 4000px (a 50MP still would not
+     * fit in a cheap phone's memory).
      */
     const deepScan = async (): Promise<string | null> => {
-      const IC = (window as unknown as { ImageCapture?: new (t: MediaStreamTrack) => { takePhoto(): Promise<Blob> } })
-        .ImageCapture;
+      const IC = (window as unknown as { ImageCapture?: CaptureCtor }).ImageCapture;
       const track = trackRef.current;
-      if (!IC || !track || !deepOk) return null;
+      if (!IC || !track || deepFails >= 3) return null;
       try {
-        const bmp = await createImageBitmap(await new IC(track).takePhoto());
+        if (!capture) {
+          capture = new IC(track);
+          try {
+            const pc = await capture.getPhotoCapabilities();
+            const w = pc.imageWidth?.max;
+            const h = pc.imageHeight?.max;
+            if (w && h) {
+              const k = Math.min(1, 4096 / Math.max(w, h));
+              photoSize = { imageWidth: Math.round(w * k), imageHeight: Math.round(h * k) };
+            }
+          } catch {
+            /* no capabilities: the default still */
+          }
+        }
+        let blob: Blob;
+        try {
+          blob = await capture.takePhoto(photoSize);
+        } catch (e) {
+          if (!photoSize) throw e;
+          photoSize = undefined; // this size was refused: the default still from now on
+          blob = await capture.takePhoto();
+        }
+        const bmp = await createImageBitmap(blob);
+        const photo = `photo ${bmp.width}x${bmp.height}`;
+        setInfo((p) => (p.photo === photo ? p : { ...p, photo }));
+        // alternately the middle 80% and the middle 50% (a small code gets more pixels)
         const side = Math.min(bmp.width, bmp.height);
-        const part = Math.round(side * 0.8);
+        const part = Math.round(side * (deepCount++ % 2 === 0 ? 0.8 : 0.5));
         const text = await tryRegion(
           bmp,
           Math.round((bmp.width - part) / 2),
@@ -176,9 +266,11 @@ export default function AadhaarScanPage() {
           Math.min(part, 2600)
         );
         bmp.close?.();
+        deepFails = 0;
         return text;
       } catch {
-        deepOk = false; // this phone/browser cannot do it: do not keep trying
+        // three failures in a row: this phone/browser cannot do it, stop trying
+        if (++deepFails >= 3) setInfo((p) => ({ ...p, photo: "photo -" }));
         return null;
       }
     };
@@ -223,9 +315,15 @@ export default function AadhaarScanPage() {
     (async () => {
       try {
         void loadZx(); // start loading the decoder while the camera opens
+        void getNative().then((d) => {
+          if (!stopped) setInfo((p) => ({ ...p, engine: d ? "ML+ZX" : "ZX" }));
+        });
+        setZoom(null);
+        setTorch("none");
+        const size = { width: { ideal: 3840 }, height: { ideal: 2160 } };
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+          video: camId ? { deviceId: { exact: camId }, ...size } : { facingMode: { ideal: "environment" }, ...size },
         });
         if (stopped) {
           stream.getTracks().forEach((t) => t.stop());
@@ -250,7 +348,25 @@ export default function AadhaarScanPage() {
           setZoom({ min: caps.zoom.min, max: caps.zoom.max, value });
         }
         const st = track.getSettings?.() ?? {};
-        setCamInfo(st.width && st.height ? `${st.width}x${st.height}` : "");
+        curCamRef.current = st.deviceId ?? null;
+        setInfo((p) => ({
+          ...p,
+          cam: st.width && st.height ? `camera ${st.width}x${st.height}` : undefined,
+          lens: track.label || undefined,
+          photo: undefined,
+        }));
+        // The phone's back cameras (labels are readable only now, after permission).
+        try {
+          const vids = (await navigator.mediaDevices.enumerateDevices()).filter(
+            (d) => d.kind === "videoinput" && d.deviceId
+          );
+          const back = vids.filter((d) => /back|rear|environment/i.test(d.label));
+          const list = (back.length ? back : vids).map((d) => d.deviceId);
+          setCams((prev) => (prev.join("|") === list.join("|") ? prev : list));
+        } catch {
+          /* no list: no "Camera badlein" button */
+        }
+        if (stopped) return;
         video.srcObject = stream;
         await video.play();
         setStatus({ kind: "scanning" });
@@ -266,7 +382,7 @@ export default function AadhaarScanPage() {
       stream?.getTracks().forEach((t) => t.stop());
       trackRef.current = null;
     };
-  }, [valid, decode, handleText, loadZx]);
+  }, [valid, camId, decodeCanvas, getNative, handleText, loadZx]);
 
   /** "Take a photo" path: full-resolution picture from the phone's own camera app. */
   const onPhoto = useCallback(
@@ -285,7 +401,7 @@ export default function AadhaarScanPage() {
         if (!g) throw new Error("canvas");
         g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
         bmp.close?.();
-        const text = await decode(g.getImageData(0, 0, canvas.width, canvas.height));
+        const text = await decodeCanvas(canvas);
         if (!text) {
           setStatus({ kind: "notfound" });
           return;
@@ -295,8 +411,39 @@ export default function AadhaarScanPage() {
         setStatus({ kind: "error", msg: "Photo padh nahi paaya. Dobara photo lein." });
       }
     },
-    [decode, handleText]
+    [decodeCanvas, handleText]
   );
+
+  /** Next back camera of the phone (the effect above reopens the stream on it). */
+  const switchCam = useCallback(() => {
+    if (cams.length < 2) return;
+    const i = cams.indexOf(curCamRef.current ?? "");
+    setStatus({ kind: "starting" });
+    setCamId(cams[(i + 1) % cams.length]);
+  }, [cams]);
+
+  /** Tap on the picture: make the camera focus again (it sometimes settles on the background). */
+  const refocus = useCallback(async () => {
+    const track = trackRef.current;
+    if (!track) return;
+    const modes = ((track.getCapabilities?.() ?? {}) as { focusMode?: string[] }).focusMode ?? [];
+    if (!modes.includes("continuous")) return;
+    const other = modes.includes("single-shot") ? "single-shot" : modes.includes("manual") ? "manual" : "";
+    if (!other) return;
+    try {
+      await track.applyConstraints({ advanced: [{ focusMode: other } as MediaTrackConstraintSet] });
+    } catch {
+      /* stays in continuous focus */
+    }
+    setTimeout(
+      () => {
+        trackRef.current
+          ?.applyConstraints({ advanced: [{ focusMode: "continuous" } as MediaTrackConstraintSet] })
+          .catch(() => {});
+      },
+      other === "single-shot" ? 1200 : 300
+    );
+  }, []);
 
   const toggleTorch = useCallback(async () => {
     const track = trackRef.current;
@@ -410,6 +557,7 @@ export default function AadhaarScanPage() {
       </div>
 
       <div
+        onClick={() => void refocus()}
         style={{
           width: "100%",
           maxWidth: 520,
@@ -456,14 +604,25 @@ export default function AadhaarScanPage() {
           </button>
         </div>
       )}
+      {cams.length > 1 && (
+        <button type="button" style={{ ...btn, flex: "none", width: "100%", maxWidth: 520 }} onClick={switchCam}>
+          Camera badlein (dhundhla dikhe to)
+        </button>
+      )}
       <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(e) => void onPhoto(e)} style={{ display: "none" }} />
 
       <p style={{ maxWidth: 520, fontSize: 13, lineHeight: 1.5, opacity: 0.8, textAlign: "center", margin: 0 }}>
-        Pehle computer par check-in screen me F8 dabayein. QR chaukor ko lagbhag bhar de, saaf dikhe, us par
-        chamak na pade. Chhota ya halka QR na padhe to Zoom + dabayein, ya &quot;Photo lekar scan karein&quot;
-        se QR ka paas se photo lein. Ye page kuch save nahi karta: scan seedhe aapke hotel ke computer ko jata hai.
+        Pehle computer par check-in screen me F8 dabayein. Phone ko card se lagbhag 12-15 cm door rakhein, QR
+        chaukor ko lagbhag bhar de aur us par chamak na pade. Dhundhla dikhe to picture par ungli se tap karein
+        (focus), ya phone thoda door karke Zoom + dabayein. Phir bhi na padhe to &quot;Photo lekar scan
+        karein&quot; se QR ka photo lein. Ye page kuch save nahi karta: scan seedhe aapke hotel ke computer ko
+        jata hai.
       </p>
-      {camInfo && <div style={{ fontSize: 11, opacity: 0.45 }}>camera {camInfo}</div>}
+      {(info.cam || info.engine) && (
+        <div style={{ fontSize: 11, opacity: 0.45, textAlign: "center" }}>
+          {[info.cam, info.lens, info.engine, info.photo].filter(Boolean).join(" · ")}
+        </div>
+      )}
     </main>
   );
 }
