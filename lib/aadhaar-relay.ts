@@ -43,6 +43,53 @@ export function relayPut(code: string, payload: string): void {
   store.set(code, { payload, at: now });
 }
 
+/* ------------------------------------------------------------------ ID card photos
+ * Same idea for the photos of the guest's ID card (front / back) that the phone page sends
+ * for checkin.exe's "ID Photo" box: memory only, short-lived, deleted when the PC takes
+ * them. One picture per code and side; a newer one replaces the older.
+ * Sizes are kept small on purpose: nginx in front of the app refuses bodies over 1 MB, and
+ * the whole store is bounded (MAX_IMAGES x MAX_IMAGE = about 36 MB at the very worst).
+ */
+
+const IMG_TTL_MS = 180_000;
+const MAX_IMAGES = 40;
+export const MAX_IMAGE = 900_000;
+
+export type Side = "f" | "b";
+type Img = { data: ArrayBuffer; at: number };
+
+const gi = globalThis as unknown as { __aadhaarImages?: Map<string, Img> };
+const images: Map<string, Img> = gi.__aadhaarImages ?? (gi.__aadhaarImages = new Map());
+
+function sweepImages(now: number) {
+  for (const [k, v] of images) if (now - v.at > IMG_TTL_MS) images.delete(k);
+}
+
+export function imagePut(code: string, side: Side, data: ArrayBuffer): void {
+  const now = Date.now();
+  sweepImages(now);
+  const key = `${code}:${side}`;
+  images.delete(key); // re-insert at the end: the Map's order is its age order
+  if (images.size >= MAX_IMAGES) {
+    const oldest = images.keys().next().value;
+    if (oldest !== undefined) images.delete(oldest);
+  }
+  images.set(key, { data, at: now });
+}
+
+/** Returns one pending photo for this code (front before back) and deletes it. */
+export function imageTake(code: string): { side: Side; data: ArrayBuffer } | null {
+  const now = Date.now();
+  for (const side of ["f", "b"] as const) {
+    const key = `${code}:${side}`;
+    const e = images.get(key);
+    if (!e) continue;
+    images.delete(key);
+    if (now - e.at <= IMG_TTL_MS) return { side, data: e.data };
+  }
+  return null;
+}
+
 /** Returns the pending scan for this code and deletes it (one-time read). */
 export function relayTake(code: string): string | null {
   const now = Date.now();

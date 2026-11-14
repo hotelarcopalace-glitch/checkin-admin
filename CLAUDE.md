@@ -141,6 +141,8 @@ push · secure`) under the button for exactly this.
 | `GET\|POST /api/sms/SMSInsert` | **none — open** | vendor endpoint: `mobileNo` + `smsText`, returns `{code:0}` / `{code:1}` |
 | `POST /api/ascan/<code>` | pairing code | phone page posts the raw Aadhaar QR text for one hotel PC (see "Aadhaar QR relay") |
 | `GET /api/ascan/<code>` | pairing code | checkin.exe polls; returns the QR text once (`200 text/plain`) or `204` |
+| `POST /api/aimg/<code>?side=f\|b` | pairing code | phone page posts one JPEG of the guest's ID card, front or back (see "Aadhaar QR relay") |
+| `GET /api/aimg/<code>` | pairing code | checkin.exe polls; returns one photo once (`200`, `Content-Type: image/jpeg; side=f\|b`) or `204` |
 
 `SMSInsert` is also served at `/api/sms/insert` and `/newadmin/api/sms/SMSInsert`;
 all three share `lib/sms-insert.ts`. It mirrors the contract of the owner's existing
@@ -169,6 +171,14 @@ checkin.exe's check-in screen (F8 there). Pieces:
   checkin.exe (file `AADHMOB_<COMPUTER>.TXT` in its data folder) with a crypto RNG. It is the only
   credential; only text shaped like an Aadhaar QR (old XML, or the all-digits secure QR) is accepted.
 - checkin.exe side: `D:\CHECKIN\AADHAR.PRG` (polls with `curl` about every 2 s while its scan box is open).
+- **ID card photos (added 14 Nov 2026).** The same phone page has "Front photo" / "Back photo" buttons
+  (the phone's own camera app). The page shrinks the picture to a JPEG of at most about 700 KB
+  (1600 px, then 1280 / 1024 if still too big) and posts it to `app/api/aimg/[code]/route.ts`.
+  checkin.exe's "ID Photo" box (F4 in the guest box, `D:\CHECKIN\EVISIT.PRG`) polls `GET /api/aimg/<code>`
+  about every 1.5 s and saves the file in the hotel's own `DATA\IDPROOF\` folder. Same rules as the
+  QR text: **memory only** (`lib/aadhaar-relay.ts`, 3 minutes at most, deleted when fetched, never
+  Postgres, never logged), JPEG only, 900 KB limit. Keep that limit under nginx's body limit (1 MB
+  by default) and the store bounded (40 pictures): these are images of ID cards.
 
 Verified: the photo path with photos of two real cards (old XML QR), end to end through the relay.
 Not verified yet: the live camera on a real phone, the newer all-digits "secure QR", and iPhone/Safari.

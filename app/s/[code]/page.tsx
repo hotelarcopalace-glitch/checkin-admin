@@ -49,6 +49,8 @@ type Status =
   | { kind: "sending" }
   | { kind: "sent" }
   | { kind: "already" }
+  | { kind: "idsending" }
+  | { kind: "idsent"; side: "f" | "b" }
   | { kind: "notaadhaar" }
   | { kind: "notfound" }
   | { kind: "error"; msg: string };
@@ -60,6 +62,11 @@ export default function AadhaarScanPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // ID card photos (front / back) for checkin.exe's "ID Photo" box (F4 in the guest box).
+  const idRef = useRef<HTMLInputElement>(null);
+  const idSideRef = useRef<"f" | "b">("f");
+  const idSeqRef = useRef(0);
+  const [idSent, setIdSent] = useState<{ f?: boolean; b?: boolean }>({});
   const zxRef = useRef<ZX | null>(null);
   const busyRef = useRef(false);
   const lastRef = useRef<{ text: string; at: number } | null>(null);
@@ -168,6 +175,7 @@ export default function AadhaarScanPage() {
         });
         if (!res.ok) throw new Error(String(res.status));
         lastRef.current = { text, at: Date.now() };
+        setIdSent({}); // a new guest: their card photos are not sent yet
         setStatus({ kind: "sent" });
         if (navigator.vibrate) navigator.vibrate(120);
         await new Promise((r) => setTimeout(r, 3500)); // pause before the next guest
@@ -414,6 +422,74 @@ export default function AadhaarScanPage() {
     [decodeCanvas, handleText]
   );
 
+  /**
+   * ID card photo (front or back): taken with the phone's own camera app, shrunk here to a
+   * JPEG of at most about 700 KB (the server refuses more than 900 KB) and posted to
+   * /api/aimg/<code>, where checkin.exe's "ID Photo" box picks it up. Not kept on this page.
+   */
+  const onIdPhoto = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      const side = idSideRef.current;
+      const seq = ++idSeqRef.current;
+      setStatus({ kind: "idsending" });
+      try {
+        const bmp = await createImageBitmap(file);
+        const canvas = document.createElement("canvas");
+        let blob: Blob | null = null;
+        for (const [max, q] of [
+          [1600, 0.82],
+          [1280, 0.72],
+          [1024, 0.6],
+        ]) {
+          const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+          canvas.width = Math.max(1, Math.round(bmp.width * k));
+          canvas.height = Math.max(1, Math.round(bmp.height * k));
+          const g = canvas.getContext("2d");
+          if (!g) throw new Error("canvas");
+          g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+          blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", q));
+          if (blob && blob.size <= 700_000) break;
+        }
+        bmp.close?.();
+        if (!blob || blob.size > 880_000) throw new Error("size");
+        const res = await fetch(`/api/aimg/${code}?side=${side}`, {
+          method: "POST",
+          headers: { "Content-Type": "image/jpeg" },
+          body: blob,
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(String(res.status));
+        setIdSent((p) => ({ ...p, [side]: true }));
+        setStatus({ kind: "idsent", side });
+        if (navigator.vibrate) navigator.vibrate(120);
+        await new Promise((r) => setTimeout(r, 4000));
+        // back to the scan message, unless another photo was sent meanwhile
+        if (idSeqRef.current === seq) {
+          setStatus((s) => (s.kind === "idsent" ? (trackRef.current ? { kind: "scanning" } : { kind: "nocamera" }) : s));
+        }
+      } catch {
+        setStatus({ kind: "error", msg: "Photo bhej nahi paaya. Internet dekh kar dobara photo lein." });
+      }
+    },
+    [code]
+  );
+
+  // The "sent" ticks belong to one guest: clear them after two minutes (the server has
+  // dropped an uncollected photo by then anyway).
+  useEffect(() => {
+    if (!idSent.f && !idSent.b) return;
+    const t = setTimeout(() => setIdSent({}), 120_000);
+    return () => clearTimeout(t);
+  }, [idSent]);
+
+  const takeIdPhoto = useCallback((side: "f" | "b") => {
+    idSideRef.current = side;
+    idRef.current?.click();
+  }, []);
+
   /** Next back camera of the phone (the effect above reopens the stream on it). */
   const switchCam = useCallback(() => {
     if (cams.length < 2) return;
@@ -513,6 +589,13 @@ export default function AadhaarScanPage() {
         return { bg: "#15803d", text: "Bhej diya ✓  Computer par detail dekhein" };
       case "already":
         return { bg: "#15803d", text: "Ye card abhi bheja ja chuka hai ✓  Agla card dikhayein" };
+      case "idsending":
+        return { bg: "#b45309", text: "Photo computer ko bhej raha hai ..." };
+      case "idsent":
+        return {
+          bg: "#15803d",
+          text: `${status.side === "f" ? "Front" : "Back"} photo bhej diya ✓  Computer par dekhein`,
+        };
       case "notaadhaar":
         return { bg: "#b91c1c", text: "Ye Aadhaar ka QR nahi hai. Aadhaar card ka QR scan karein." };
       case "notfound":
@@ -610,6 +693,36 @@ export default function AadhaarScanPage() {
         </button>
       )}
       <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(e) => void onPhoto(e)} style={{ display: "none" }} />
+
+      {/* ID card photos for the guest record (computer: F4 = ID Photo in the guest box) */}
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          border: "1px solid #374151",
+          borderRadius: 12,
+          padding: 12,
+          boxSizing: "border-box",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+        }}
+      >
+        <div style={{ fontSize: 15, fontWeight: 600, textAlign: "center" }}>ID card ka photo</div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button type="button" style={{ ...btn, background: idSent.f ? "#15803d" : "#374151" }} onClick={() => takeIdPhoto("f")}>
+            {idSent.f ? "Front ✓ (dobara)" : "Front photo"}
+          </button>
+          <button type="button" style={{ ...btn, background: idSent.b ? "#15803d" : "#374151" }} onClick={() => takeIdPhoto("b")}>
+            {idSent.b ? "Back ✓ (dobara)" : "Back photo"}
+          </button>
+        </div>
+        <div style={{ fontSize: 12, lineHeight: 1.45, opacity: 0.75, textAlign: "center" }}>
+          Computer par guest box me F4 (ID Photo) dabayein, phir yahan card ke aage aur peeche ka photo lein.
+          Agle guest ke liye wahi dobara.
+        </div>
+      </div>
+      <input ref={idRef} type="file" accept="image/*" capture="environment" onChange={(e) => void onIdPhoto(e)} style={{ display: "none" }} />
 
       <p style={{ maxWidth: 520, fontSize: 13, lineHeight: 1.5, opacity: 0.8, textAlign: "center", margin: 0 }}>
         Pehle computer par check-in screen me F8 dabayein. Phone ko card se lagbhag 12-15 cm door rakhein, QR
