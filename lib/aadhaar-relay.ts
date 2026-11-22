@@ -40,8 +40,8 @@ export function looksLikeDlQr(text: string): boolean {
   return /(^|[^A-Za-z])DL\s*No\.?\s*[:=]/i.test(text) && /(^|[^A-Za-z])Name\s*[:=]/i.test(text);
 }
 
-/** Voter ID card number (EPIC): ABC1234567, or the old RJ/20/123/456789 style. */
-const EPIC_RE = /^(?:[A-Z]{3}\d{7}|[A-Z]{2,3}\/\d{1,3}\/\d{1,4}\/\d{3,7})$/;
+/** Voter ID card number (EPIC): ABC1234567 (many cards print it as ABC/1234567), or the old RJ/20/123/456789 style. */
+const EPIC_RE = /^(?:[A-Z]{3}[/-]?\d{7}|[A-Z]{2,3}\/\d{1,3}\/\d{1,4}\/\d{3,7})$/;
 const EPIC_JSON_RE = /"epic(?:_?no)?"\s*:\s*"[^"]{6,23}"/i;
 // The one fixed key every voter card QR is encrypted with (public: github.com/captn3m0/epicqr, MIT).
 const EPIC_KEY = "X_4k$uq23FSwI.qT";

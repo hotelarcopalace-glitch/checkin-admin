@@ -43,7 +43,7 @@ function isIdQr(text: string) {
  *   - the card number alone (the 1D barcode of older cards)
  * Must stay in step with looksLikeVoterQr (lib/aadhaar-relay.ts) and VoterParse (AADHAR.PRG).
  */
-const EPIC_RE = /^(?:[A-Z]{3}\d{7}|[A-Z]{2,3}\/\d{1,3}\/\d{1,4}\/\d{3,7})$/;
+const EPIC_RE = /^(?:[A-Z]{3}[/-]?\d{7}|[A-Z]{2,3}\/\d{1,3}\/\d{1,4}\/\d{3,7})$/;
 const EPIC_JSON_RE = /"epic(?:_?no)?"\s*:\s*"[^"]{6,23}"/i;
 const EPIC_KEY = "X_4k$uq23FSwI.qT";
 const EPIC_IV = "H76$suq23_po(8sD";
