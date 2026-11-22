@@ -35,6 +35,46 @@ function isIdQr(text: string) {
   );
 }
 
+/**
+ * Voter ID card (EPIC). It carries the card number only, no name or address:
+ *   - the QR of the newer cards: base64 of AES-128-CBC({"epic_no":"ABC1234567", ...}), one fixed
+ *     key for every card (public: github.com/captn3m0/epicqr, MIT)
+ *   - open JSON with an "epic" / "epic_no" key (some cards)
+ *   - the card number alone (the 1D barcode of older cards)
+ * Must stay in step with looksLikeVoterQr (lib/aadhaar-relay.ts) and VoterParse (AADHAR.PRG).
+ */
+const EPIC_RE = /^(?:[A-Z]{3}\d{7}|[A-Z]{2,3}\/\d{1,3}\/\d{1,4}\/\d{3,7})$/;
+const EPIC_JSON_RE = /"epic(?:_?no)?"\s*:\s*"[^"]{6,23}"/i;
+const EPIC_KEY = "X_4k$uq23FSwI.qT";
+const EPIC_IV = "H76$suq23_po(8sD";
+
+/** The text as a voter card number, or null when it is not one. */
+function epicNo(text: string): string | null {
+  const c = text.replace(/\s+/g, "").toUpperCase();
+  return EPIC_RE.test(c) ? c : null;
+}
+
+async function isVoterQr(text: string): Promise<boolean> {
+  const t = text.trim();
+  if (t.length < 8 || t.length > 600 || t.includes("<")) return false;
+  if (t.includes("{")) return EPIC_JSON_RE.test(t);
+  const c = t.replace(/\s+/g, "");
+  if (epicNo(c)) return true;
+  if (c.length < 24 || c.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(c)) return false;
+  try {
+    const data = Uint8Array.from(atob(c), (ch) => ch.charCodeAt(0));
+    if (data.length < 16 || data.length % 16 !== 0) return false;
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return true; // this browser cannot check it: the server does
+    const enc = new TextEncoder();
+    const key = await subtle.importKey("raw", enc.encode(EPIC_KEY), { name: "AES-CBC" }, false, ["decrypt"]);
+    const plain = new TextDecoder().decode(await subtle.decrypt({ name: "AES-CBC", iv: enc.encode(EPIC_IV) }, key, data));
+    return plain.trimStart().startsWith("{") && EPIC_JSON_RE.test(plain);
+  } catch {
+    return false; // wrong padding: some other base64 text
+  }
+}
+
 type ZX = typeof import("zxing-wasm/reader");
 
 /** The browser's built-in barcode reader (not in TypeScript's DOM types). */
@@ -56,6 +96,7 @@ type Status =
   | { kind: "reading" }
   | { kind: "sending" }
   | { kind: "sent" }
+  | { kind: "sentvoter" }
   | { kind: "already" }
   | { kind: "idsending" }
   | { kind: "idsent"; side: "f" | "b" }
@@ -93,6 +134,7 @@ export default function AadhaarScanPage() {
   const [camId, setCamId] = useState<string | null>(null);
   const curCamRef = useRef<string | null>(null);
   const nativeRef = useRef<Detector | null | undefined>(undefined); // undefined = not looked for yet
+  const nativeLinRef = useRef<Detector | null | undefined>(undefined); // same, for 1D barcodes (voter ID)
 
   /** Loads the decoder once (the .wasm is served from our own /zxing/). */
   const loadZx = useCallback(async (): Promise<ZX> => {
@@ -122,6 +164,46 @@ export default function AadhaarScanPage() {
     [loadZx]
   );
 
+  /**
+   * No QR in the picture: the 1D barcode of an older voter ID card. Only a voter card number
+   * is taken; any other barcode in view is ignored (no "wrong code" message for it).
+   */
+  const decodeLinear = useCallback(
+    async (image: ImageData): Promise<string | null> => {
+      const zx = await loadZx();
+      const res = await zx.readBarcodes(image, {
+        formats: ["Code128", "Code39", "Code93"],
+        tryHarder: true,
+        tryRotate: true,
+        tryDownscale: true,
+        maxNumberOfSymbols: 3,
+      });
+      for (const r of res) {
+        const n = epicNo(r.text ?? "");
+        if (n) return n;
+      }
+      return null;
+    },
+    [loadZx]
+  );
+
+  /** The browser's own reader for those 1D barcodes, or null. */
+  const getNativeLinear = useCallback(async (): Promise<Detector | null> => {
+    if (nativeLinRef.current !== undefined) return nativeLinRef.current;
+    nativeLinRef.current = null;
+    try {
+      const BD = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
+      if (BD?.getSupportedFormats) {
+        const want = ["code_128", "code_39", "code_93"];
+        const have = (await BD.getSupportedFormats()).filter((f) => want.includes(f));
+        if (have.length) nativeLinRef.current = new BD({ formats: have });
+      }
+    } catch {
+      nativeLinRef.current = null;
+    }
+    return nativeLinRef.current;
+  }, []);
+
   /** The browser's own QR reader, or null where there is none (iPhone, desktop Windows). */
   const getNative = useCallback(async (): Promise<Detector | null> => {
     if (nativeRef.current !== undefined) return nativeRef.current;
@@ -138,9 +220,12 @@ export default function AadhaarScanPage() {
     return nativeRef.current;
   }, []);
 
-  /** Reads the QR in a canvas: the phone's reader first, then ZXing on the same pixels. */
+  /**
+   * Reads the QR in a canvas: the phone's reader first, then ZXing on the same pixels.
+   * linear = true: when there is no QR, also look for a voter ID card's 1D barcode.
+   */
   const decodeCanvas = useCallback(
-    async (canvas: HTMLCanvasElement): Promise<string | null> => {
+    async (canvas: HTMLCanvasElement, linear = false): Promise<string | null> => {
       const det = await getNative();
       if (det) {
         try {
@@ -153,9 +238,23 @@ export default function AadhaarScanPage() {
       }
       const g = canvas.getContext("2d", { willReadFrequently: true });
       if (!g) return null;
-      return decode(g.getImageData(0, 0, canvas.width, canvas.height));
+      const image = g.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = await decode(image);
+      if (qr || !linear) return qr;
+      const lin = await getNativeLinear();
+      if (lin) {
+        try {
+          for (const f of await lin.detect(canvas)) {
+            const n = epicNo(f.rawValue ?? "");
+            if (n) return n;
+          }
+        } catch {
+          /* ZXing below */
+        }
+      }
+      return decodeLinear(image);
     },
-    [decode, getNative]
+    [decode, decodeLinear, getNative, getNativeLinear]
   );
 
   /** A QR was read: check it, send it to the PC, show the result. */
@@ -169,7 +268,9 @@ export default function AadhaarScanPage() {
         setStatus({ kind: "already" });
         return;
       }
-      if (!isIdQr(text)) {
+      // A voter ID card gives its number only: the name is typed on the computer.
+      const voter = !isIdQr(text) && (await isVoterQr(text));
+      if (!voter && !isIdQr(text)) {
         setStatus({ kind: "notaadhaar" });
         return;
       }
@@ -181,10 +282,14 @@ export default function AadhaarScanPage() {
           body: text,
           cache: "no-store",
         });
+        if (res.status === 422) {
+          setStatus({ kind: "notaadhaar" }); // the server did not take it as an ID code
+          return;
+        }
         if (!res.ok) throw new Error(String(res.status));
         lastRef.current = { text, at: Date.now() };
         setIdSent({}); // a new guest: their card photos are not sent yet
-        setStatus({ kind: "sent" });
+        setStatus({ kind: voter ? "sentvoter" : "sent" });
         if (navigator.vibrate) navigator.vibrate(120);
         await new Promise((r) => setTimeout(r, 3500)); // pause before the next guest
         setStatus(trackRef.current ? { kind: "scanning" } : { kind: "nocamera" });
@@ -219,7 +324,8 @@ export default function AadhaarScanPage() {
       sx: number,
       sy: number,
       side: number,
-      out: number
+      out: number,
+      linear = false
     ): Promise<string | null> => {
       canvas.width = out;
       canvas.height = out;
@@ -228,7 +334,7 @@ export default function AadhaarScanPage() {
       g.imageSmoothingEnabled = true;
       g.imageSmoothingQuality = "high";
       g.drawImage(src, sx, sy, side, side, 0, 0, out, out);
-      return decodeCanvas(canvas);
+      return decodeCanvas(canvas, linear);
     };
 
     /**
@@ -302,7 +408,8 @@ export default function AadhaarScanPage() {
           let text: string | null = null;
           if (frame % 2 === 0) {
             // whole centre square, shrunk to at most 1600px: fast, enough for an easy code
-            text = await tryRegion(video, (vw - side) / 2, (vh - side) / 2, side, Math.min(side, 1600));
+            // (and, with no QR in it, for the wide 1D barcode of an older voter ID card)
+            text = await tryRegion(video, (vw - side) / 2, (vh - side) / 2, side, Math.min(side, 1600), true);
           } else {
             // the middle 60% at the camera's own resolution (enlarged if that is small):
             // every pixel the stream has goes to the code inside the guide square
@@ -417,7 +524,7 @@ export default function AadhaarScanPage() {
         if (!g) throw new Error("canvas");
         g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
         bmp.close?.();
-        const text = await decodeCanvas(canvas);
+        const text = await decodeCanvas(canvas, true);
         if (!text) {
           setStatus({ kind: "notfound" });
           return;
@@ -572,7 +679,7 @@ export default function AadhaarScanPage() {
   if (!valid) {
     return (
       <main style={box}>
-        <h1 style={{ fontSize: 20, margin: "24px 0 0" }}>Aadhaar / Driving Licence QR Scan</h1>
+        <h1 style={{ fontSize: 20, margin: "24px 0 0" }}>Aadhaar / Driving Licence / Voter ID Scan</h1>
         <p style={{ textAlign: "center", lineHeight: 1.5 }}>
           Ye link sahi nahi hai. CHECKIN software me check-in screen par F8 dabakar jo link dikhta hai, wahi
           kholein.
@@ -595,6 +702,8 @@ export default function AadhaarScanPage() {
         return { bg: "#b45309", text: "Computer ko bhej raha hai ..." };
       case "sent":
         return { bg: "#15803d", text: "Bhej diya ✓  Computer par detail dekhein" };
+      case "sentvoter":
+        return { bg: "#15803d", text: "Voter ID ka number bhej diya ✓  Naam computer par type karein" };
       case "already":
         return { bg: "#15803d", text: "Ye card abhi bheja ja chuka hai ✓  Agla card dikhayein" };
       case "idsending":
@@ -605,7 +714,7 @@ export default function AadhaarScanPage() {
           text: `${status.side === "f" ? "Front" : "Back"} photo bhej diya ✓  Computer par dekhein`,
         };
       case "notaadhaar":
-        return { bg: "#b91c1c", text: "Ye Aadhaar ya Driving Licence ka QR nahi hai. Unhi ka QR scan karein." };
+        return { bg: "#b91c1c", text: "Ye Aadhaar, Driving Licence ya Voter ID ka QR nahi hai. Unhi ka QR scan karein." };
       case "notfound":
         return { bg: "#b91c1c", text: "Photo me QR nahi mila. QR ko paas se, saaf aur seedha lekar dobara photo lein." };
       case "error":
@@ -626,7 +735,7 @@ export default function AadhaarScanPage() {
 
   return (
     <main style={box}>
-      <h1 style={{ fontSize: 20, margin: "4px 0 0" }}>Aadhaar / Driving Licence QR Scan</h1>
+      <h1 style={{ fontSize: 20, margin: "4px 0 0" }}>Aadhaar / Driving Licence / Voter ID Scan</h1>
       <div style={{ fontSize: 13, opacity: 0.75 }}>Computer code: &hellip;{code.slice(-4)}</div>
 
       <div
@@ -736,8 +845,8 @@ export default function AadhaarScanPage() {
         Pehle computer par check-in screen me F8 dabayein. Phone ko card se lagbhag 12-15 cm door rakhein, QR
         chaukor ko lagbhag bhar de aur us par chamak na pade. Dhundhla dikhe to picture par ungli se tap karein
         (focus), ya phone thoda door karke Zoom + dabayein. Phir bhi na padhe to &quot;Photo lekar scan
-        karein&quot; se QR ka photo lein. Ye page kuch save nahi karta: scan seedhe aapke hotel ke computer ko
-        jata hai.
+        karein&quot; se QR ka photo lein. Voter ID ke QR / barcode me sirf card number hota hai: naam computer
+        par type karna hoga. Ye page kuch save nahi karta: scan seedhe aapke hotel ke computer ko jata hai.
       </p>
       {(info.cam || info.engine) && (
         <div style={{ fontSize: 11, opacity: 0.45, textAlign: "center" }}>

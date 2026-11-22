@@ -175,6 +175,15 @@ checkin.exe's check-in screen (F8 there). Pieces:
   driving licence (Sarathi e-DL / smart card): `Name:<name>,\nDLNo:<number>,\nDOB:<DD-MM-YYYY>` - only
   those three fields exist in it. `looksLikeDlQr` in `lib/aadhaar-relay.ts` and `isIdQr` in the page
   must stay in step with `DlParse` in `D:\CHECKIN\AADHAR.PRG`. Anything else is still refused (422).
+- **Voter ID (added 22 Nov 2026).** The same page and relay carry a voter ID card (EPIC) too. It gives
+  the **card number only** (no name, address or date of birth; the hotel types those). Three shapes:
+  the QR of newer cards = base64 of AES-128-CBC over `{"epic_no":"ABC1234567","unique_generated_id":n}`
+  with one fixed key for every card (public decoder: github.com/captn3m0/epicqr, MIT); open JSON with an
+  `"epic"` key; or the bare number from the 1D barcode of older cards (the page looks for Code 128/39/93
+  only when a frame has no QR, and takes it only if it is shaped like a card number). `looksLikeVoterQr`
+  (lib), `isVoterQr` / `epicNo` (page) and `VoterParse` (`D:\CHECKIN\AADHAR.PRG`) must stay in step.
+  Other base64 text is refused: it has to decrypt to that JSON. Checked against the decoder's public
+  test vector only, **not against a real card** (the Election Commission has not published the format).
 - **ID card photos (added 14 Nov 2026).** The same phone page has "Front photo" / "Back photo" buttons
   (the phone's own camera app). The page shrinks the picture to a JPEG of at most about 700 KB
   (1600 px, then 1280 / 1024 if still too big) and posts it to `app/api/aimg/[code]/route.ts`.

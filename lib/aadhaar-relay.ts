@@ -9,6 +9,8 @@
  * on a multi-instance host this would need a shared store.
  */
 
+import { createDecipheriv } from "node:crypto";
+
 const TTL_MS = 90_000;
 const MAX_ENTRIES = 2000;
 export const MAX_PAYLOAD = 12_000;
@@ -38,9 +40,43 @@ export function looksLikeDlQr(text: string): boolean {
   return /(^|[^A-Za-z])DL\s*No\.?\s*[:=]/i.test(text) && /(^|[^A-Za-z])Name\s*[:=]/i.test(text);
 }
 
-/** The ID QRs the relay carries: Aadhaar (both formats) and driving licence. */
+/** Voter ID card number (EPIC): ABC1234567, or the old RJ/20/123/456789 style. */
+const EPIC_RE = /^(?:[A-Z]{3}\d{7}|[A-Z]{2,3}\/\d{1,3}\/\d{1,4}\/\d{3,7})$/;
+const EPIC_JSON_RE = /"epic(?:_?no)?"\s*:\s*"[^"]{6,23}"/i;
+// The one fixed key every voter card QR is encrypted with (public: github.com/captn3m0/epicqr, MIT).
+const EPIC_KEY = "X_4k$uq23FSwI.qT";
+const EPIC_IV = "H76$suq23_po(8sD";
+
+/**
+ * True for what a Voter ID card (EPIC) gives when scanned. It carries the card number only,
+ * no name or address:
+ *   - the QR of the newer cards: base64 of AES-128-CBC({"epic_no":"ABC1234567","unique_generated_id":1234})
+ *   - open JSON with an "epic" / "epic_no" key (some cards)
+ *   - the card number alone (the 1D barcode of older cards)
+ * checkin.exe reads the same three shapes (AADHAR.PRG, VoterParse). Any other base64 text is
+ * refused: it has to decrypt to that JSON.
+ */
+export function looksLikeVoterQr(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 8 || t.length > 600 || t.includes("<")) return false;
+  if (t.includes("{")) return EPIC_JSON_RE.test(t);
+  const c = t.replace(/\s+/g, "");
+  if (EPIC_RE.test(c.toUpperCase())) return true;
+  if (c.length < 24 || c.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(c)) return false;
+  try {
+    const data = Buffer.from(c, "base64");
+    if (data.length < 16 || data.length % 16 !== 0) return false;
+    const d = createDecipheriv("aes-128-cbc", Buffer.from(EPIC_KEY, "latin1"), Buffer.from(EPIC_IV, "latin1"));
+    const plain = Buffer.concat([d.update(data), d.final()]).toString("latin1");
+    return plain.trimStart().startsWith("{") && EPIC_JSON_RE.test(plain);
+  } catch {
+    return false; // wrong padding: not a voter card QR
+  }
+}
+
+/** The ID codes the relay carries: Aadhaar (both formats), driving licence and voter ID. */
 export function looksLikeIdQr(text: string): boolean {
-  return looksLikeAadhaarQr(text) || looksLikeDlQr(text);
+  return looksLikeAadhaarQr(text) || looksLikeDlQr(text) || looksLikeVoterQr(text);
 }
 
 function sweep(now: number) {
