@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import { RESCUE_KINDS, rescueImage } from "@/lib/qr-rescue";
 
 /**
  * Phone page for the Aadhaar QR relay. The hotel PC (checkin.exe, F8 on the check-in
@@ -165,6 +166,24 @@ export default function AadhaarScanPage() {
   );
 
   /**
+   * A QR printed with ink spread (many locally re-printed Aadhaar cards): the normal read
+   * fails because the black has run into the white. Thinner-black copies of the picture
+   * (lib/qr-rescue.ts), each through ZXing. Slow (about a second on a phone for a 1600px
+   * picture), so the callers use it sparingly.
+   */
+  const decodeRescue = useCallback(
+    async (image: ImageData): Promise<string | null> => {
+      for (const kind of RESCUE_KINDS) {
+        const px = rescueImage(image, kind);
+        const text = await decode(new ImageData(px.data, px.width, px.height));
+        if (text) return text;
+      }
+      return null;
+    },
+    [decode]
+  );
+
+  /**
    * No QR in the picture: the 1D barcode of an older voter ID card. Only a voter card number
    * is taken; any other barcode in view is ignored (no "wrong code" message for it).
    */
@@ -223,9 +242,10 @@ export default function AadhaarScanPage() {
   /**
    * Reads the QR in a canvas: the phone's reader first, then ZXing on the same pixels.
    * linear = true: when there is no QR, also look for a voter ID card's 1D barcode.
+   * rescue = true: when nothing was read, also try the copies for an over-inked print.
    */
   const decodeCanvas = useCallback(
-    async (canvas: HTMLCanvasElement, linear = false): Promise<string | null> => {
+    async (canvas: HTMLCanvasElement, linear = false, rescue = false): Promise<string | null> => {
       const det = await getNative();
       if (det) {
         try {
@@ -240,21 +260,25 @@ export default function AadhaarScanPage() {
       if (!g) return null;
       const image = g.getImageData(0, 0, canvas.width, canvas.height);
       const qr = await decode(image);
-      if (qr || !linear) return qr;
-      const lin = await getNativeLinear();
-      if (lin) {
-        try {
-          for (const f of await lin.detect(canvas)) {
-            const n = epicNo(f.rawValue ?? "");
-            if (n) return n;
+      if (qr) return qr;
+      if (linear) {
+        const lin = await getNativeLinear();
+        if (lin) {
+          try {
+            for (const f of await lin.detect(canvas)) {
+              const n = epicNo(f.rawValue ?? "");
+              if (n) return n;
+            }
+          } catch {
+            /* ZXing below */
           }
-        } catch {
-          /* ZXing below */
         }
+        const bar = await decodeLinear(image);
+        if (bar) return bar;
       }
-      return decodeLinear(image);
+      return rescue ? decodeRescue(image) : null;
     },
-    [decode, decodeLinear, getNative, getNativeLinear]
+    [decode, decodeLinear, decodeRescue, getNative, getNativeLinear]
   );
 
   /** A QR was read: check it, send it to the PC, show the result. */
@@ -325,7 +349,8 @@ export default function AadhaarScanPage() {
       sy: number,
       side: number,
       out: number,
-      linear = false
+      linear = false,
+      rescue = false
     ): Promise<string | null> => {
       canvas.width = out;
       canvas.height = out;
@@ -334,7 +359,7 @@ export default function AadhaarScanPage() {
       g.imageSmoothingEnabled = true;
       g.imageSmoothingQuality = "high";
       g.drawImage(src, sx, sy, side, side, 0, 0, out, out);
-      return decodeCanvas(canvas, linear);
+      return decodeCanvas(canvas, linear, rescue);
     };
 
     /**
@@ -385,7 +410,9 @@ export default function AadhaarScanPage() {
           Math.round((bmp.width - part) / 2),
           Math.round((bmp.height - part) / 2),
           part,
-          Math.min(part, 2600)
+          Math.min(part, 2600),
+          false,
+          true // a still is the best picture there is: also try it as an over-inked print
         );
         bmp.close?.();
         deepFails = 0;
@@ -406,15 +433,18 @@ export default function AadhaarScanPage() {
           const vh = video.videoHeight;
           const side = Math.min(vw, vh);
           let text: string | null = null;
+          // After 4 seconds without a read, every third frame also gets the (slow) second
+          // chance for an over-inked print.
+          const rescue = Date.now() - startedAt > 4000 && frame % 3 === 0;
           if (frame % 2 === 0) {
             // whole centre square, shrunk to at most 1600px: fast, enough for an easy code
             // (and, with no QR in it, for the wide 1D barcode of an older voter ID card)
-            text = await tryRegion(video, (vw - side) / 2, (vh - side) / 2, side, Math.min(side, 1600), true);
+            text = await tryRegion(video, (vw - side) / 2, (vh - side) / 2, side, Math.min(side, 1600), true, rescue);
           } else {
             // the middle 60% at the camera's own resolution (enlarged if that is small):
             // every pixel the stream has goes to the code inside the guide square
             const part = Math.round(side * 0.6);
-            text = await tryRegion(video, (vw - part) / 2, (vh - part) / 2, part, Math.max(part, Math.min(part * 2, 1400)));
+            text = await tryRegion(video, (vw - part) / 2, (vh - part) / 2, part, Math.max(part, Math.min(part * 2, 1400)), false, rescue);
           }
           frame++;
           const now = Date.now();
@@ -524,7 +554,29 @@ export default function AadhaarScanPage() {
         if (!g) throw new Error("canvas");
         g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
         bmp.close?.();
-        const text = await decodeCanvas(canvas, true);
+        let text = await decodeCanvas(canvas, true);
+        if (!text) {
+          // Over-inked print: thinner-black copies, at the picture's own size, halved and
+          // enlarged. The thinning works per pixel, so how much it does depends on the pixels
+          // per module: a small picture needs enlarging first (a screenshot of a real card
+          // read only at 3x), a very large one may do better halved.
+          const big = document.createElement("canvas");
+          for (const k of [1, 0.5, 1.5, 2, 3]) {
+            const w = Math.round(canvas.width * k);
+            const h = Math.round(canvas.height * k);
+            if (k > 1 && Math.max(w, h) > 4500) continue;
+            if (k < 1 && Math.max(w, h) < 1200) continue;
+            big.width = w;
+            big.height = h;
+            const bg = big.getContext("2d", { willReadFrequently: true });
+            if (!bg) break;
+            bg.imageSmoothingEnabled = true;
+            bg.imageSmoothingQuality = "high";
+            bg.drawImage(canvas, 0, 0, w, h);
+            text = await decodeRescue(bg.getImageData(0, 0, w, h));
+            if (text) break;
+          }
+        }
         if (!text) {
           setStatus({ kind: "notfound" });
           return;
@@ -534,7 +586,7 @@ export default function AadhaarScanPage() {
         setStatus({ kind: "error", msg: "Photo padh nahi paaya. Dobara photo lein." });
       }
     },
-    [decodeCanvas, handleText]
+    [decodeCanvas, decodeRescue, handleText]
   );
 
   /**

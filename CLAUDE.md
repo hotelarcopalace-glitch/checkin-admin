@@ -184,6 +184,16 @@ checkin.exe's check-in screen (F8 there). Pieces:
   (lib), `isVoterQr` / `epicNo` (page) and `VoterParse` (`D:\CHECKIN\AADHAR.PRG`) must stay in step.
   Other base64 text is refused: it has to decrypt to that JSON. Checked against the decoder's public
   test vector only, **not against a real card** (the Election Commission has not published the format).
+- **Over-inked QR (added 22 Nov 2026).** Locally re-printed PVC Aadhaar cards often have the black of
+  the dense secure QR run into the white; the normal read then fails however the phone is held.
+  `lib/qr-rescue.ts` makes thinner-black copies of the picture (`gamma2`, `gamma3thin`, `cut45`) and
+  the page runs ZXing on each: on every third live frame once 4 seconds have passed without a read,
+  on every full-size still, and on a taken photo at several sizes (own size, halved, enlarged up to
+  4500 px - the one-pixel thinning needs several pixels per module). Evidence: a simulated print
+  (plain read 9 of 24 pictures, with the copies 19) and a screenshot of one real card that would not
+  scan, which the photo path now reads (3051 digits, parsed by checkin.exe). Not yet confirmed on that
+  card with a live phone camera. It is slow (about a second per 1600 px picture), so keep it behind
+  the normal read, never in front of it.
 - **ID card photos (added 14 Nov 2026).** The same phone page has "Front photo" / "Back photo" buttons
   (the phone's own camera app). The page shrinks the picture to a JPEG of at most about 700 KB
   (1600 px, then 1280 / 1024 if still too big) and posts it to `app/api/aimg/[code]/route.ts`.
