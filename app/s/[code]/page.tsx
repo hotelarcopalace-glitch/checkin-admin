@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { RESCUE_KINDS, rescueImage } from "@/lib/qr-rescue";
+import { looksLikePassport, mrzFromOcr } from "@/lib/mrz";
 
 /**
  * Phone page for the Aadhaar QR relay. The hotel PC (checkin.exe, F8 on the check-in
@@ -76,6 +77,15 @@ async function isVoterQr(text: string): Promise<boolean> {
   }
 }
 
+/** The passport number alone (barcode on the last page of an Indian passport), or null. */
+function passNo(text: string): string | null {
+  const c = text.replace(/\s+/g, "").toUpperCase();
+  return /^[A-Z]\d{7}$/.test(c) ? c : null;
+}
+
+/** tesseract.js worker for the passport photo page (lib/mrz.ts); files served from /tess/. */
+type OcrWorker = { recognize(img: HTMLCanvasElement): Promise<{ data: { text: string } }> };
+
 type ZX = typeof import("zxing-wasm/reader");
 
 /** The browser's built-in barcode reader (not in TypeScript's DOM types). */
@@ -98,6 +108,10 @@ type Status =
   | { kind: "sending" }
   | { kind: "sent" }
   | { kind: "sentvoter" }
+  | { kind: "sentpassno" }
+  | { kind: "sentpass" }
+  | { kind: "passreading" }
+  | { kind: "passfail" }
   | { kind: "already" }
   | { kind: "idsending" }
   | { kind: "idsent"; side: "f" | "b" }
@@ -114,6 +128,9 @@ export default function AadhaarScanPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   // ID card photos (front / back) for checkin.exe's "ID Photo" box (F4 in the guest box).
   const idRef = useRef<HTMLInputElement>(null);
+  // Passport photo page: the two lines at the bottom are read by OCR (onPassport).
+  const passRef = useRef<HTMLInputElement>(null);
+  const ocrRef = useRef<OcrWorker | null>(null);
   const idSideRef = useRef<"f" | "b">("f");
   const idSeqRef = useRef(0);
   const [idSent, setIdSent] = useState<{ f?: boolean; b?: boolean }>({});
@@ -198,7 +215,7 @@ export default function AadhaarScanPage() {
         maxNumberOfSymbols: 3,
       });
       for (const r of res) {
-        const n = epicNo(r.text ?? "");
+        const n = epicNo(r.text ?? "") ?? passNo(r.text ?? "");
         if (n) return n;
       }
       return null;
@@ -266,7 +283,7 @@ export default function AadhaarScanPage() {
         if (lin) {
           try {
             for (const f of await lin.detect(canvas)) {
-              const n = epicNo(f.rawValue ?? "");
+              const n = epicNo(f.rawValue ?? "") ?? passNo(f.rawValue ?? "");
               if (n) return n;
             }
           } catch {
@@ -294,7 +311,10 @@ export default function AadhaarScanPage() {
       }
       // A voter ID card gives its number only: the name is typed on the computer.
       const voter = !isIdQr(text) && (await isVoterQr(text));
-      if (!voter && !isIdQr(text)) {
+      // Passport: the two lines of the photo page (read by onPassport), or the number alone
+      // from the barcode on the last page.
+      const pass = !voter && !isIdQr(text) && looksLikePassport(text);
+      if (!voter && !pass && !isIdQr(text)) {
         setStatus({ kind: "notaadhaar" });
         return;
       }
@@ -313,7 +333,7 @@ export default function AadhaarScanPage() {
         if (!res.ok) throw new Error(String(res.status));
         lastRef.current = { text, at: Date.now() };
         setIdSent({}); // a new guest: their card photos are not sent yet
-        setStatus({ kind: voter ? "sentvoter" : "sent" });
+        setStatus({ kind: voter ? "sentvoter" : pass ? (text.length <= 9 ? "sentpassno" : "sentpass") : "sent" });
         if (navigator.vibrate) navigator.vibrate(120);
         await new Promise((r) => setTimeout(r, 3500)); // pause before the next guest
         setStatus(trackRef.current ? { kind: "scanning" } : { kind: "nocamera" });
@@ -590,6 +610,103 @@ export default function AadhaarScanPage() {
   );
 
   /**
+   * Passport: a photo of the photo page. The two lines at the bottom (MRZ) are read with
+   * tesseract.js (loaded only now, from /tess/: about 7 MB the first time), repaired and proved
+   * by their check digits (lib/mrz.ts) and sent as text. The picture itself goes nowhere.
+   * The bottom of the page is tried first, then more of it, then the page turned on its side.
+   */
+  const onPassport = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      setStatus({ kind: "passreading" });
+      try {
+        if (!ocrRef.current) {
+          const T = await import("tesseract.js");
+          const w = await T.createWorker("eng", 1, { workerPath: "/tess/worker.min.js", corePath: "/tess/", langPath: "/tess/", gzip: true });
+          await w.setParameters({
+            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<",
+            tessedit_pageseg_mode: T.PSM.SINGLE_BLOCK,
+          });
+          ocrRef.current = w as unknown as OcrWorker;
+        }
+        const ocr = ocrRef.current;
+        const bmp = await createImageBitmap(file);
+        const canvas = document.createElement("canvas");
+        // part = how much of the page from the bottom; turn = quarter turns clockwise
+        const tryPart = async (part: number, turn: number): Promise<string | null> => {
+          const sw = bmp.width;
+          const sh = bmp.height;
+          const pw = turn % 2 ? sh : sw; // the page as it stands after turning
+          const ph = turn % 2 ? sw : sh;
+          const top = Math.round(ph * (1 - part));
+          const k = Math.min(1, 1800 / pw);
+          canvas.width = Math.round(pw * k);
+          canvas.height = Math.round((ph - top) * k);
+          const g = canvas.getContext("2d");
+          if (!g) return null;
+          g.fillStyle = "#fff";
+          g.fillRect(0, 0, canvas.width, canvas.height);
+          g.save();
+          g.scale(k, k);
+          g.translate(0, -top);
+          if (turn === 1) {
+            g.translate(pw, 0);
+            g.rotate(Math.PI / 2);
+          } else if (turn === 3) {
+            g.translate(0, ph);
+            g.rotate(-Math.PI / 2);
+          } else if (turn === 2) {
+            g.translate(pw, ph);
+            g.rotate(Math.PI);
+          }
+          g.imageSmoothingEnabled = true;
+          g.imageSmoothingQuality = "high";
+          g.drawImage(bmp, 0, 0);
+          g.restore();
+          const { data } = await ocr.recognize(canvas);
+          const m = mrzFromOcr(data.text);
+          return m ? m.line1 + "\n" + m.line2 : null;
+        };
+        let text: string | null = null;
+        for (const [part, turn] of [
+          [0.4, 0],
+          [0.65, 0],
+          [1, 0],
+          [0.5, 1],
+          [0.5, 3],
+          [0.5, 2],
+        ]) {
+          text = await tryPart(part, turn);
+          if (text) break;
+        }
+        if (!text) {
+          // Not the photo page? The last page has a barcode with the passport number: take that.
+          const k = Math.min(1, 3200 / Math.max(bmp.width, bmp.height));
+          canvas.width = Math.round(bmp.width * k);
+          canvas.height = Math.round(bmp.height * k);
+          const g = canvas.getContext("2d", { willReadFrequently: true });
+          if (g) {
+            g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+            const code = await decodeCanvas(canvas, true);
+            if (code && passNo(code)) text = code;
+          }
+        }
+        bmp.close?.();
+        if (!text) {
+          setStatus({ kind: "passfail" });
+          return;
+        }
+        await handleText(text);
+      } catch {
+        setStatus({ kind: "error", msg: "Passport padh nahi paaya. Internet dekh kar dobara photo lein." });
+      }
+    },
+    [decodeCanvas, handleText]
+  );
+
+  /**
    * ID card photo (front or back): taken with the phone's own camera app, shrunk here to a
    * JPEG of at most about 700 KB (the server refuses more than 900 KB) and posted to
    * /api/aimg/<code>, where checkin.exe's "ID Photo" box picks it up. Not kept on this page.
@@ -731,7 +848,7 @@ export default function AadhaarScanPage() {
   if (!valid) {
     return (
       <main style={box}>
-        <h1 style={{ fontSize: 20, margin: "24px 0 0" }}>Aadhaar / Driving Licence / Voter ID Scan</h1>
+        <h1 style={{ fontSize: 20, margin: "24px 0 0" }}>Aadhaar / Licence / Voter ID / Passport Scan</h1>
         <p style={{ textAlign: "center", lineHeight: 1.5 }}>
           Ye link sahi nahi hai. CHECKIN software me check-in screen par F8 dabakar jo link dikhta hai, wahi
           kholein.
@@ -756,6 +873,17 @@ export default function AadhaarScanPage() {
         return { bg: "#15803d", text: "Bhej diya ✓  Computer par detail dekhein" };
       case "sentvoter":
         return { bg: "#15803d", text: "Voter ID ka number bhej diya ✓  Naam computer par type karein" };
+      case "sentpassno":
+        return { bg: "#15803d", text: "Passport ka number bhej diya ✓  Naam computer par type karein" };
+      case "sentpass":
+        return { bg: "#15803d", text: "Passport bhej diya ✓  Computer par naam ek baar mila lein" };
+      case "passreading":
+        return { bg: "#b45309", text: "Passport padh raha hai ... (pehli baar 10-20 second lagte hain)" };
+      case "passfail":
+        return {
+          bg: "#b91c1c",
+          text: "Passport ki neeche wali do line nahi padhi gayi. Photo wala panna poora, seedha aur bina chamak ke lekar dobara photo lein.",
+        };
       case "already":
         return { bg: "#15803d", text: "Ye card abhi bheja ja chuka hai ✓  Agla card dikhayein" };
       case "idsending":
@@ -766,7 +894,7 @@ export default function AadhaarScanPage() {
           text: `${status.side === "f" ? "Front" : "Back"} photo bhej diya ✓  Computer par dekhein`,
         };
       case "notaadhaar":
-        return { bg: "#b91c1c", text: "Ye Aadhaar, Driving Licence ya Voter ID ka QR nahi hai. Unhi ka QR scan karein." };
+        return { bg: "#b91c1c", text: "Ye Aadhaar, Driving Licence, Voter ID ya Passport ka code nahi hai. Unhi ka code scan karein." };
       case "notfound":
         return { bg: "#b91c1c", text: "Photo me QR nahi mila. QR ko paas se, saaf aur seedha lekar dobara photo lein." };
       case "error":
@@ -787,7 +915,7 @@ export default function AadhaarScanPage() {
 
   return (
     <main style={box}>
-      <h1 style={{ fontSize: 20, margin: "4px 0 0" }}>Aadhaar / Driving Licence / Voter ID Scan</h1>
+      <h1 style={{ fontSize: 20, margin: "4px 0 0" }}>Aadhaar / Licence / Voter ID / Passport Scan</h1>
       <div style={{ fontSize: 13, opacity: 0.75 }}>Computer code: &hellip;{code.slice(-4)}</div>
 
       <div
@@ -863,6 +991,16 @@ export default function AadhaarScanPage() {
       )}
       <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={(e) => void onPhoto(e)} style={{ display: "none" }} />
 
+      {/* Passport: photo of the photo page; its two bottom lines are read (onPassport) */}
+      <button
+        type="button"
+        style={{ ...btn, flex: "none", width: "100%", maxWidth: 520, background: "#0f766e" }}
+        onClick={() => passRef.current?.click()}
+      >
+        Passport: photo wale panne ka photo lein
+      </button>
+      <input ref={passRef} type="file" accept="image/*" capture="environment" onChange={(e) => void onPassport(e)} style={{ display: "none" }} />
+
       {/* ID card photos for the guest record (computer: F4 = ID Photo in the guest box) */}
       <div
         style={{
@@ -898,7 +1036,9 @@ export default function AadhaarScanPage() {
         chaukor ko lagbhag bhar de aur us par chamak na pade. Dhundhla dikhe to picture par ungli se tap karein
         (focus), ya phone thoda door karke Zoom + dabayein. Phir bhi na padhe to &quot;Photo lekar scan
         karein&quot; se QR ka photo lein. Voter ID ke QR / barcode me sirf card number hota hai: naam computer
-        par type karna hoga. Ye page kuch save nahi karta: scan seedhe aapke hotel ke computer ko jata hai.
+        par type karna hoga. Passport ke liye hara button dabayein aur photo wale panne ka poora, seedha photo
+        lein (neeche ki do line saaf dikhein); aakhri panne ka barcode scan karne par sirf passport number
+        aata hai. Ye page kuch save nahi karta: scan seedhe aapke hotel ke computer ko jata hai.
       </p>
       {(info.cam || info.engine) && (
         <div style={{ fontSize: 11, opacity: 0.45, textAlign: "center" }}>

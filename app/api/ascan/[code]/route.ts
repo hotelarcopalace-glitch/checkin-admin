@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
  * GET  /api/ascan/<code>   polled by checkin.exe.     -> 200 text/plain (the QR text, once) or 204
  *
  * No API key: <code> is a 12-character random secret that only that PC and the phone that
- * opened its link know. Only text shaped like an Aadhaar, driving-licence or voter ID code is accepted, so this cannot be
+ * opened its link know. Only text shaped like an Aadhaar, driving-licence, voter ID or passport code is accepted, so this cannot be
  * used as a general message drop. Nothing here is logged or stored outside memory.
  */
 
@@ -43,7 +43,7 @@ export async function POST(req: Request, ctx: Ctx) {
   }
   text = text.trim();
   if (!looksLikeIdQr(text)) {
-    return NextResponse.json({ ok: false, error: "Not an Aadhaar, driving licence or voter ID code" }, { status: 422 });
+    return NextResponse.json({ ok: false, error: "Not an Aadhaar, driving licence, voter ID or passport code" }, { status: 422 });
   }
 
   relayPut(code, text);

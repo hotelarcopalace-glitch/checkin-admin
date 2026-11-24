@@ -194,6 +194,19 @@ checkin.exe's check-in screen (F8 there). Pieces:
   scan, which the photo path now reads (3051 digits, parsed by checkin.exe). Not yet confirmed on that
   card with a live phone camera. It is slow (about a second per 1600 px picture), so keep it behind
   the normal read, never in front of it.
+- **Passport (added 24 Nov 2026).** Two ways, both ending as text on the same relay:
+  (1) the green "Passport" button takes a photo of the photo page; `tesseract.js` reads the two
+  44-character lines at the bottom (MRZ) and `lib/mrz.ts` repairs the usual OCR slips and **proves
+  line 2 by its check digits** (number, birth date, expiry) before anything is sent; the names on
+  line 1 have no check digit, so the page tells the hotel to look at the name. The picture never
+  leaves the phone. (2) The barcode on the last page of an Indian passport (Code 128) holds the
+  passport number only: read by the normal scan, name typed on the computer.
+  `tesseract.js` is loaded only when the button is pressed; its worker, engine and English model are
+  copied to `public/tess/` (gitignored, about 15 MB) by `scripts/copy-tess.mjs` on `prebuild` /
+  `predev`; a phone downloads about 7 MB the first time. `looksLikePassport` (lib) and `PassParse`
+  (`D:\CHECKIN\AADHAR.PRG`) must stay in step. Checked with synthetic pages only (upright, sideways,
+  large and blurred: read; several fonts: 6 of 8) and one real last-page barcode; **not yet with a
+  real photo page** - the passport font (OCR-B) may need its own model if real pages misread.
 - **ID card photos (added 14 Nov 2026).** The same phone page has "Front photo" / "Back photo" buttons
   (the phone's own camera app). The page shrinks the picture to a JPEG of at most about 700 KB
   (1600 px, then 1280 / 1024 if still too big) and posts it to `app/api/aimg/[code]/route.ts`.

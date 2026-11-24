@@ -10,6 +10,7 @@
  */
 
 import { createDecipheriv } from "node:crypto";
+import { looksLikePassport } from "./mrz";
 
 const TTL_MS = 90_000;
 const MAX_ENTRIES = 2000;
@@ -74,9 +75,13 @@ export function looksLikeVoterQr(text: string): boolean {
   }
 }
 
-/** The ID codes the relay carries: Aadhaar (both formats), driving licence and voter ID. */
+/**
+ * The ID codes the relay carries: Aadhaar (both formats), driving licence, voter ID and
+ * passport (the two MRZ lines read by the page, or the number from the last-page barcode;
+ * lib/mrz.ts).
+ */
 export function looksLikeIdQr(text: string): boolean {
-  return looksLikeAadhaarQr(text) || looksLikeDlQr(text) || looksLikeVoterQr(text);
+  return looksLikeAadhaarQr(text) || looksLikeDlQr(text) || looksLikeVoterQr(text) || looksLikePassport(text);
 }
 
 function sweep(now: number) {

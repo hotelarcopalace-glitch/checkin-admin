@@ -24,3 +24,5 @@ public/build-info.json
 
 # Copied from node_modules/zxing-wasm by scripts/copy-zxing.mjs (prebuild / predev)
 public/zxing/
+# Copied from node_modules (tesseract.js) by scripts/copy-tess.mjs (prebuild / predev)
+public/tess/
