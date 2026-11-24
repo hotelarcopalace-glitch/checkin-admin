@@ -204,9 +204,19 @@ checkin.exe's check-in screen (F8 there). Pieces:
   `tesseract.js` is loaded only when the button is pressed; its worker, engine and English model are
   copied to `public/tess/` (gitignored, about 15 MB) by `scripts/copy-tess.mjs` on `prebuild` /
   `predev`; a phone downloads about 7 MB the first time. `looksLikePassport` (lib) and `PassParse`
-  (`D:\CHECKIN\AADHAR.PRG`) must stay in step. Checked with synthetic pages only (upright, sideways,
-  large and blurred: read; several fonts: 6 of 8) and one real last-page barcode; **not yet with a
-  real photo page** - the passport font (OCR-B) may need its own model if real pages misread.
+  (`D:\CHECKIN\AADHAR.PRG`) must stay in step.
+  What a real Indian passport taught (24 Nov 2026, one photo, page lying on its side with a shadow
+  across it) - all of it is in `lib/mrz.ts`, do not simplify it away:
+  a shadow made the OCR lose the right third of both lines (`flattenLight` evens the light first);
+  the English model reads the passport font's `<` as `K` or `<K`, so names got stray K's or ran
+  together (second reading without K + `mergeNameLines`); a stray letter still stuck to a name now
+  and then, so the names are checked against the page's own printed text above the lines
+  (`mrzCheckNames`: a letter is dropped only when the page shows the shorter word), with a
+  three-size majority vote (`mrzVote`) when that does not settle it. On that photo 36 of 36 crops
+  and sizes then gave the right name from a single reading. The page guesses the orientation from
+  the picture's shape (a tall picture = page on its side) because every wrong guess costs a
+  reading: about 7 s in a desktop browser. One passport is one passport: other countries' pages
+  and worse photos are untested, and the page says so when the names are not all found printed.
 - **ID card photos (added 14 Nov 2026).** The same phone page has "Front photo" / "Back photo" buttons
   (the phone's own camera app). The page shrinks the picture to a JPEG of at most about 700 KB
   (1600 px, then 1280 / 1024 if still too big) and posts it to `app/api/aimg/[code]/route.ts`.

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { RESCUE_KINDS, rescueImage } from "@/lib/qr-rescue";
-import { looksLikePassport, mrzFromOcr } from "@/lib/mrz";
+import { flattenLight, looksLikePassport, mrzCheckNames, mrzFromOcr, mrzHasLine2, mrzVote } from "@/lib/mrz";
 
 /**
  * Phone page for the Aadhaar QR relay. The hotel PC (checkin.exe, F8 on the check-in
@@ -84,7 +84,11 @@ function passNo(text: string): string | null {
 }
 
 /** tesseract.js worker for the passport photo page (lib/mrz.ts); files served from /tess/. */
-type OcrWorker = { recognize(img: HTMLCanvasElement): Promise<{ data: { text: string } }> };
+type OcrWorker = {
+  recognize(img: HTMLCanvasElement): Promise<{ data: { text: string } }>;
+  setParameters(p: Record<string, string>): Promise<unknown>;
+};
+const MRZ_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<";
 
 type ZX = typeof import("zxing-wasm/reader");
 
@@ -110,6 +114,7 @@ type Status =
   | { kind: "sentvoter" }
   | { kind: "sentpassno" }
   | { kind: "sentpass" }
+  | { kind: "sentpasschk" }
   | { kind: "passreading" }
   | { kind: "passfail" }
   | { kind: "already" }
@@ -131,6 +136,7 @@ export default function AadhaarScanPage() {
   // Passport photo page: the two lines at the bottom are read by OCR (onPassport).
   const passRef = useRef<HTMLInputElement>(null);
   const ocrRef = useRef<OcrWorker | null>(null);
+  const passSeenRef = useRef(true); // the last passport's names were found printed on the page
   const idSideRef = useRef<"f" | "b">("f");
   const idSeqRef = useRef(0);
   const [idSent, setIdSent] = useState<{ f?: boolean; b?: boolean }>({});
@@ -333,7 +339,7 @@ export default function AadhaarScanPage() {
         if (!res.ok) throw new Error(String(res.status));
         lastRef.current = { text, at: Date.now() };
         setIdSent({}); // a new guest: their card photos are not sent yet
-        setStatus({ kind: voter ? "sentvoter" : pass ? (text.length <= 9 ? "sentpassno" : "sentpass") : "sent" });
+        setStatus({ kind: voter ? "sentvoter" : pass ? (text.length <= 9 ? "sentpassno" : passSeenRef.current ? "sentpass" : "sentpasschk") : "sent" });
         if (navigator.vibrate) navigator.vibrate(120);
         await new Promise((r) => setTimeout(r, 3500)); // pause before the next guest
         setStatus(trackRef.current ? { kind: "scanning" } : { kind: "nocamera" });
@@ -610,10 +616,19 @@ export default function AadhaarScanPage() {
   );
 
   /**
-   * Passport: a photo of the photo page. The two lines at the bottom (MRZ) are read with
-   * tesseract.js (loaded only now, from /tess/: about 7 MB the first time), repaired and proved
-   * by their check digits (lib/mrz.ts) and sent as text. The picture itself goes nowhere.
-   * The bottom of the page is tried first, then more of it, then the page turned on its side.
+   * Passport: a photo of the photo page. Everything is read on the phone with tesseract.js
+   * (loaded only now, from /tess/: about 7 MB the first time); the picture itself goes nowhere.
+   *   1. find the two bottom lines (MRZ): the bottom of the page first, then more of it, then
+   *      the page turned on its side. Line 2 must prove itself by its check digits.
+   *   2. the name line is read twice (with and without the letter K: the passport font's "<"
+   *      looks like a K to the OCR model) and the two readings are merged.
+   *   3. the printed text above the lines is read normally and the names are checked against
+   *      it: a stray letter is removed only when the page shows the shorter word.
+   *   4. names still not all found on the page: two more sizes, majority vote, check again;
+   *      the hotel is then told to compare the name with the passport.
+   * Every picture has its light evened out first (flattenLight): a shadow across the page made
+   * the OCR lose the right-hand third of both lines on the first real passport tried.
+   * All of this is in lib/mrz.ts, measured on that passport: 18 of 18 crops and sizes right.
    */
   const onPassport = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -625,27 +640,24 @@ export default function AadhaarScanPage() {
         if (!ocrRef.current) {
           const T = await import("tesseract.js");
           const w = await T.createWorker("eng", 1, { workerPath: "/tess/worker.min.js", corePath: "/tess/", langPath: "/tess/", gzip: true });
-          await w.setParameters({
-            tessedit_char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<",
-            tessedit_pageseg_mode: T.PSM.SINGLE_BLOCK,
-          });
           ocrRef.current = w as unknown as OcrWorker;
         }
         const ocr = ocrRef.current;
         const bmp = await createImageBitmap(file);
         const canvas = document.createElement("canvas");
-        // part = how much of the page from the bottom; turn = quarter turns clockwise
-        const tryPart = async (part: number, turn: number): Promise<string | null> => {
-          const sw = bmp.width;
-          const sh = bmp.height;
-          const pw = turn % 2 ? sh : sw; // the page as it stands after turning
-          const ph = turn % 2 ? sw : sh;
-          const top = Math.round(ph * (1 - part));
-          const k = Math.min(1, 1800 / pw);
-          canvas.width = Math.round(pw * k);
-          canvas.height = Math.round((ph - top) * k);
-          const g = canvas.getContext("2d");
-          if (!g) return null;
+        /**
+         * Draws a horizontal band of the page (from..to, as fractions of its height, after
+         * turning it by `turn` quarter turns clockwise) `width` pixels wide, light evened out.
+         */
+        const draw = (turn: number, from: number, to: number, width: number): boolean => {
+          const pw = turn % 2 ? bmp.height : bmp.width; // the page as it stands after turning
+          const ph = turn % 2 ? bmp.width : bmp.height;
+          const top = Math.round(ph * from);
+          const k = Math.min(3, width / pw); // a small picture is enlarged, at most 3 times
+          canvas.width = Math.max(1, Math.round(pw * k));
+          canvas.height = Math.max(1, Math.round((ph * to - top) * k));
+          const g = canvas.getContext("2d", { willReadFrequently: true });
+          if (!g) return false;
           g.fillStyle = "#fff";
           g.fillRect(0, 0, canvas.width, canvas.height);
           g.save();
@@ -665,21 +677,55 @@ export default function AadhaarScanPage() {
           g.imageSmoothingQuality = "high";
           g.drawImage(bmp, 0, 0);
           g.restore();
-          const { data } = await ocr.recognize(canvas);
-          const m = mrzFromOcr(data.text);
-          return m ? m.line1 + "\n" + m.line2 : null;
+          const flat = flattenLight(g.getImageData(0, 0, canvas.width, canvas.height));
+          g.putImageData(new ImageData(flat.data, flat.width, flat.height), 0, 0);
+          return true;
         };
+        const read = async (chars: string, psm: string): Promise<string> => {
+          await ocr.setParameters({ tessedit_char_whitelist: chars, tessedit_pageseg_mode: psm });
+          return (await ocr.recognize(canvas)).data.text;
+        };
+        const NO_K = MRZ_CHARS.replace("K", "");
+        // A passport's photo page is wider than tall: a tall picture usually has the page lying
+        // on its side (tried first), a wide one has it upright. Each wrong guess costs one
+        // reading, so the order matters on a phone.
+        const tall = bmp.height > bmp.width * 1.15;
+        const order: Array<[number, number]> = tall
+          ? [[0.5, 3], [0.5, 1], [1, 0], [0.65, 0], [0.5, 2]]
+          : [[0.4, 0], [0.65, 0], [1, 0], [0.5, 2], [0.5, 1], [0.5, 3]];
+        const W = 1000; // on the first real passport every reading at 900-1100 px was right
         let text: string | null = null;
-        for (const [part, turn] of [
-          [0.4, 0],
-          [0.65, 0],
-          [1, 0],
-          [0.5, 1],
-          [0.5, 3],
-          [0.5, 2],
-        ]) {
-          text = await tryPart(part, turn);
-          if (text) break;
+        let seen = true;
+        for (const [part, turn] of order) {
+          if (!draw(turn, 1 - part, 1, W)) continue;
+          const a = await read(MRZ_CHARS, "6"); // 6 = one block of text
+          if (!mrzHasLine2(a)) continue;
+          // the printed text above the lines, read as ordinary text (3 = automatic layout)
+          const page = draw(turn, 0, 0.74, W) ? await read("", "3") : "";
+          let m = mrzFromOcr(a);
+          let r = m ? mrzCheckNames(m, page) : null;
+          if (!r || !r.nameSeen) {
+            // names not all on the page: read the lines again without K and merge
+            const more: Array<[string, string | undefined]> = [];
+            if (draw(turn, 1 - part, 1, W)) more.push([a, await read(NO_K, "6")]);
+            m = more.length ? mrzFromOcr(more[0][0], more[0][1]) : m;
+            if (m) r = mrzCheckNames(m, page);
+            if (!r || !r.nameSeen) {
+              // still not: two more sizes and a majority vote
+              for (const w of [1400, 1800]) {
+                if (!draw(turn, 1 - part, 1, w)) continue;
+                const a2 = await read(MRZ_CHARS, "6");
+                if (mrzHasLine2(a2)) more.push([a2, await read(NO_K, "6")]);
+              }
+              m = mrzVote(more);
+              if (m) r = mrzCheckNames(m, page);
+            }
+          }
+          if (r) {
+            text = r.line1 + "\n" + r.line2;
+            seen = r.nameSeen;
+            break;
+          }
         }
         if (!text) {
           // Not the photo page? The last page has a barcode with the passport number: take that.
@@ -698,6 +744,7 @@ export default function AadhaarScanPage() {
           setStatus({ kind: "passfail" });
           return;
         }
+        passSeenRef.current = seen;
         await handleText(text);
       } catch {
         setStatus({ kind: "error", msg: "Passport padh nahi paaya. Internet dekh kar dobara photo lein." });
@@ -876,7 +923,9 @@ export default function AadhaarScanPage() {
       case "sentpassno":
         return { bg: "#15803d", text: "Passport ka number bhej diya ✓  Naam computer par type karein" };
       case "sentpass":
-        return { bg: "#15803d", text: "Passport bhej diya ✓  Computer par naam ek baar mila lein" };
+        return { bg: "#15803d", text: "Passport bhej diya ✓  Computer par detail dekhein" };
+      case "sentpasschk":
+        return { bg: "#b45309", text: "Passport bhej diya ✓  Naam passport se ZAROOR mila lein (page par poora nahi mila)" };
       case "passreading":
         return { bg: "#b45309", text: "Passport padh raha hai ... (pehli baar 10-20 second lagte hain)" };
       case "passfail":
