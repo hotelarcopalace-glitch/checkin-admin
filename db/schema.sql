@@ -237,3 +237,21 @@ CREATE INDEX IF NOT EXISTS build_entries_party_idx ON build_entries (party_id);
 -- projects and can restore them or erase them for good.
 ALTER TABLE build_projects ADD COLUMN IF NOT EXISTS hidden_at TIMESTAMPTZ;
 ALTER TABLE build_projects ADD COLUMN IF NOT EXISTS hidden_by TEXT;
+
+-- Office Sync: a one-way, encrypted mirror of a hotel's CHECKIN data for a view-only office copy
+-- (lib/sync-store.ts). The data itself is chunk files on disk (SYNC_DIR); this table only holds who
+-- may push (hotel) and pull (office), as SHA-256 hashes of their tokens.
+CREATE TABLE IF NOT EXISTS sync_hotels (
+  id          TEXT PRIMARY KEY,
+  name        TEXT        NOT NULL,
+  setup_hash  TEXT,
+  write_hash  TEXT,
+  read_hash   TEXT,
+  quota_mb    INTEGER     NOT NULL DEFAULT 1024,
+  used_bytes  BIGINT      NOT NULL DEFAULT 0,
+  files       INTEGER     NOT NULL DEFAULT 0,
+  pushed_at   TIMESTAMPTZ,
+  pulled_at   TIMESTAMPTZ,
+  active      BOOLEAN     NOT NULL DEFAULT TRUE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
