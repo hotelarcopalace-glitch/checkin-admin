@@ -243,6 +243,28 @@ The link format must stay in step with `PayLink()` in `UPIQR.PRG` (in `D:/CHECKI
 Anyone can make such a link with any UPI ID, so the page shows the UPI ID plainly and tells the guest to check
 the name in the UPI app; do not add wording that suggests the site vouches for the payee.
 
+## Office Sync (added 28 Nov 2026)
+
+A one-way, encrypted mirror of a hotel's CHECKIN data folder, so the owner's office can open the same desktop
+program on a view-only copy. Desktop side: `CKSYNC.exe` (`D:\CHECKIN\CKSYNC.PRG`) and `OFFSYNC.PRG` inside CHECKIN.exe.
+
+- **Flow:** hotel PC pushes -> this server stores -> office PC pulls. Nothing ever flows back to the hotel.
+- **What is stored:** `SYNC_DIR` (default `~/syncdata`, i.e. `/home/deploy/syncdata`, outside the release folders):
+  `<hotel id>/manifest.json` and `<hotel id>/chunks/<aa>/<64 hex>`. Files are cut into 256 KB chunks, each zlib +
+  AES-256-GCM encrypted on the hotel PC and named by an HMAC of its content. The key never comes here (the hotel PC
+  shows an "office key" that is typed into the office PC), so guest data cannot be read on the server or in backups.
+  About 200 MB of DBF data is ~7 MB here.
+- **Auth:** table `sync_hotels` holds SHA-256 hashes of two tokens per hotel: push (hotel) and pull (office, read
+  only). A hotel is created on `/mng-x7k9/sync`, which shows a one-time setup code `<id>-<24 hex>`; the hotel PC
+  trades it for its token hashes at `POST /api/sync/<id>/register`. "New setup code" invalidates both tokens.
+- **Routes** (`lib/sync-store.ts`): `POST /api/sync/<id>/have` (which chunk ids are missing), `PUT|GET
+  /api/sync/<id>/chunk/<chunk id>`, `PUT|GET /api/sync/<id>/manifest` (`?ts=` -> 304 when unchanged; PUT answers 409 +
+  `missing` until every named chunk is there), admin `GET|POST|PATCH|DELETE /api/admin/sync-hotels`.
+- **Clean-up:** chunks no longer named by the manifest are deleted once a day old, at the next manifest PUT.
+  `used_bytes` / quota (default 1024 MB per hotel) are refreshed then too.
+- The table was created by hand with psql on 28 Nov 2026 (it is also in `db/schema.sql` for `db-setup`).
+- Not in the database backup: `syncdata` is only a mirror; a lost copy is rebuilt by the hotel PC's next push.
+
 ## Gotchas learned the hard way
 
 - **Vercel env vars added through the dashboard came back empty at runtime.** Names showed
