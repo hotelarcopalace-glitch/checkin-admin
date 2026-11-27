@@ -8,4 +8,6 @@ const from = new URL("../node_modules/zxing-wasm/dist/reader/zxing_reader.wasm",
 const dir = new URL("../public/zxing/", import.meta.url);
 mkdirSync(dir, { recursive: true });
 copyFileSync(from, new URL("zxing_reader.wasm", dir));
+// The UPI payment page (/pay) makes a QR code with the writer half of the same package.
+copyFileSync(new URL("../node_modules/zxing-wasm/dist/writer/zxing_writer.wasm", import.meta.url), new URL("zxing_writer.wasm", dir));
 console.log("zxing wasm copied to public/zxing/");

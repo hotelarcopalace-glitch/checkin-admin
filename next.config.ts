@@ -50,6 +50,15 @@ const nextConfig: NextConfig = {
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
+      // UPI payment request page: the request is in the "#" part of the link (never sent to us).
+      // Keep it out of search engines and do not hand the address to other sites.
+      {
+        source: "/pay",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
     ];
   },
   async redirects() {
