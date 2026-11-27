@@ -229,6 +229,20 @@ checkin.exe's check-in screen (F8 there). Pieces:
 Verified: the photo path with photos of two real cards (old XML QR), end to end through the relay.
 Not verified yet: the live camera on a real phone, the newer all-digits "secure QR", and iPhone/Safari.
 
+## UPI payment request page `/pay` (added 27 Nov 2026)
+
+`app/pay/page.tsx` (+ `layout.tsx`). checkin.exe (bill screen > F9 = UPI QR > W) sends the guest a WhatsApp
+link `https://checkin.co.in/pay#<base64url of "1|<UPI ID>|<name>|<amount>|<bill no.>">`. Everything is after the
+`#`, so the server never sees it and nothing is stored or logged. The page (client only) shows the name, bill
+number, amount and UPI ID, a "Pay" button (`upi://pay?pa=..&pn=..&am=..&cu=INR&tn=..`, opens the phone's UPI
+app) and a QR code of the same link (auto on a computer, behind "Show QR code" on a phone) made in the browser
+with the writer half of zxing-wasm (`public/zxing/zxing_writer.wasm`, copied by `scripts/copy-zxing.mjs`).
+No money passes through the site and the site cannot tell whether the guest paid: the hotel sees that in its
+own UPI app. `next.config.ts` gives `/pay` `noindex` and `Referrer-Policy: no-referrer`.
+The link format must stay in step with `PayLink()` in `UPIQR.PRG` (in `D:/CHECKIN`); bump the leading `1` if it changes.
+Anyone can make such a link with any UPI ID, so the page shows the UPI ID plainly and tells the guest to check
+the name in the UPI app; do not add wording that suggests the site vouches for the payee.
+
 ## Gotchas learned the hard way
 
 - **Vercel env vars added through the dashboard came back empty at runtime.** Names showed
