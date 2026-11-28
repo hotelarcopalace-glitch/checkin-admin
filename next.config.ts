@@ -52,6 +52,14 @@ const nextConfig: NextConfig = {
       },
       // UPI payment request page: the request is in the "#" part of the link (never sent to us).
       // Keep it out of search engines and do not hand the address to other sites.
+      // Owner phone app: the hotel's key may arrive in the "#" part of the link (never sent to us).
+      {
+        source: "/owner",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
       {
         source: "/pay",
         headers: [

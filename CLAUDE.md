@@ -265,6 +265,15 @@ program on a view-only copy. Desktop side: `D:\CHECKIN\CKSYNC.PRG`, compiled int
 - **Clean-up:** chunks no longer named by the manifest are deleted once a day old, at the next manifest PUT.
   `used_bytes` / quota (default 1024 MB per hotel) are refreshed then too.
 - The table was created by hand with psql on 28 Nov 2026 (it is also in `db/schema.sql` for `db-setup`).
+- **Owner phone app (`/owner`, added 28 Nov 2026):** a PWA page (`app/owner/page.tsx`, manifest in `public/owner/`)
+  that shows the hotel's Night Audit Summary (sold rooms, collection, sales; day / month / year to date) for the last
+  ~60 days. The hotel PC's sender runs `CHECKIN.EXE /MOBSUM` (the report itself, headless) at every sync, encrypts the
+  lines with a **mobile key** (separate from the office key: `M = HMAC(K,"cksync-mobile-v1")[:20]`, read token
+  `HMAC(M,"cksync-mread-v1")`, AES key `HMAC(M,"cksync-menc-v1")`) and `PUT`s `/api/sync/<id>/summary`
+  `{rt: sha256(read token), blob}`; the server keeps `<id>/summary.json` and `sync_hotels.mobile_hash` /
+  `summary_at`. The phone `GET`s it with its token and decrypts in the browser (WebCrypto). The key is shown (with a
+  QR of `https://checkin.co.in/owner#k=<key>`) on the hotel PC: UTILITY > Misc. > Office Sync > 7. The two columns
+  were added by hand with psql (also in `db/schema.sql`).
 - Not in the database backup: `syncdata` is only a mirror; a lost copy is rebuilt by the hotel PC's next push.
 
 ## Gotchas learned the hard way

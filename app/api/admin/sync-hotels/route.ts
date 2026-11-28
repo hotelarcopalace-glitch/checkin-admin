@@ -32,6 +32,7 @@ export async function GET() {
       files: h.files,
       pushedAt: h.pushed_at,
       pulledAt: h.pulled_at,
+      summaryAt: h.summary_at,
       active: h.active,
       createdAt: h.created_at,
     })),

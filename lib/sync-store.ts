@@ -45,6 +45,9 @@ export type SyncHotel = {
   files: number;
   pushed_at: string | null;
   pulled_at: string | null;
+  /** Owner phone app: hash of its read token, and when the hotel last sent the report summary. */
+  mobile_hash: string | null;
+  summary_at: string | null;
   active: boolean;
   created_at: string;
 };
@@ -56,6 +59,7 @@ export function syncDir() {
 const hotelDir = (hid: string) => path.join(syncDir(), hid);
 const chunkPath = (hid: string, id: string) => path.join(hotelDir(hid), "chunks", id.slice(0, 2), id);
 const manifestPath = (hid: string) => path.join(hotelDir(hid), "manifest.json");
+const summaryPath = (hid: string) => path.join(hotelDir(hid), "summary.json");
 
 export const sha256Hex = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -102,9 +106,12 @@ export async function createHotel(name: string, quotaMb: number): Promise<{ id: 
 export async function resetHotel(hid: string): Promise<string | null> {
   const setup = randomBytes(12).toString("hex");
   const rows = await query<{ id: string }>(
-    `UPDATE sync_hotels SET setup_hash = $2, write_hash = NULL, read_hash = NULL WHERE id = $1 RETURNING id`,
+    `UPDATE sync_hotels SET setup_hash = $2, write_hash = NULL, read_hash = NULL, mobile_hash = NULL, summary_at = NULL
+      WHERE id = $1 RETURNING id`,
     [hid, sha256Hex(setup)]
   );
+  // the phones' key changes with the hotel's new secret, so what the old key could read goes too
+  if (rows.length) await fs.rm(summaryPath(hid), { force: true });
   return rows.length ? setup : null;
 }
 
@@ -258,4 +265,45 @@ export async function notePull(hid: string) {
 /** True while this hotel may still upload (disk use is refreshed at every manifest). */
 export function underQuota(hotel: SyncHotel) {
   return Number(hotel.used_bytes) < hotel.quota_mb * 1024 * 1024;
+}
+
+/* ------------------------------------------------------------------------------------------
+ * Owner phone app (checkin.co.in/owner)
+ *
+ * Beside the full data mirror, the hotel PC sends a small report summary for the owner's phone:
+ * the Night Audit Summary (sale, collection, occupancy) of the last weeks, as CHECKIN itself
+ * prints it. It is one blob, encrypted on the hotel PC with a "mobile key" that is separate from
+ * the office key (a lost phone must not open the whole database). The server keeps the blob and
+ * the SHA-256 of the phones' read token, which the hotel PC sends along with every summary; the
+ * mobile key itself is shown only on the hotel PC and typed (or scanned) into the phone.
+ *   <SYNC_DIR>/<hotel id>/summary.json     {"v":1,"at":"<ISO time>","blob":"<base64>"}
+ * ------------------------------------------------------------------------------------------ */
+
+export const MAX_SUMMARY_BYTES = 600 * 1024;
+
+export async function putSummary(hid: string, mobileHash: string, blob: string) {
+  await fs.mkdir(hotelDir(hid), { recursive: true });
+  const p = summaryPath(hid);
+  const tmp = `${p}.${randomBytes(4).toString("hex")}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify({ v: 1, at: new Date().toISOString(), blob }));
+  await fs.rename(tmp, p);
+  await query(`UPDATE sync_hotels SET mobile_hash = $2, summary_at = NOW() WHERE id = $1`, [hid, mobileHash]);
+}
+
+export async function getSummary(hid: string): Promise<{ at: string; blob: string } | null> {
+  try {
+    const j = JSON.parse(await fs.readFile(summaryPath(hid), "utf8")) as { at?: unknown; blob?: unknown };
+    return typeof j.at === "string" && typeof j.blob === "string" ? { at: j.at, blob: j.blob } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Bearer token of the owner phone app -> the hotel it may read the summary of. */
+export async function authMobile(hid: string, req: Request): Promise<SyncHotel | null> {
+  const m = /^Bearer ([0-9a-f]{64})$/.exec(req.headers.get("authorization") ?? "");
+  if (!m) return null;
+  const hotel = await getHotel(hid);
+  if (!hotel || !hotel.active) return null;
+  return sameHash(hotel.mobile_hash, sha256Hex(m[1])) ? hotel : null;
 }

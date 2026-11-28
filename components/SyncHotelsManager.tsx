@@ -12,6 +12,7 @@ type Hotel = {
   files: number;
   pushedAt: string | null;
   pulledAt: string | null;
+  summaryAt: string | null;
   active: boolean;
   createdAt: string;
 };
@@ -120,13 +121,14 @@ export default function SyncHotelsManager() {
       {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
 
       <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full min-w-[720px] text-left text-sm">
+        <table className="w-full min-w-[840px] text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
             <tr>
               <th className="px-4 py-3">Hotel</th>
               <th className="px-4 py-3">State</th>
               <th className="px-4 py-3">Last sent by hotel</th>
               <th className="px-4 py-3">Last taken by office</th>
+              <th className="px-4 py-3">Phone app</th>
               <th className="px-4 py-3">Stored</th>
               <th className="px-4 py-3" />
             </tr>
@@ -134,14 +136,14 @@ export default function SyncHotelsManager() {
           <tbody>
             {hotels === null && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-slate-500">
                   Loading…
                 </td>
               </tr>
             )}
             {hotels?.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-slate-500">
+                <td colSpan={7} className="px-4 py-6 text-slate-500">
                   No hotels yet. Add the first one above.
                 </td>
               </tr>
@@ -163,6 +165,7 @@ export default function SyncHotelsManager() {
                 </td>
                 <td className="px-4 py-3 text-slate-600">{when(h.pushedAt)}</td>
                 <td className="px-4 py-3 text-slate-600">{when(h.pulledAt)}</td>
+                <td className="px-4 py-3 text-slate-600">{when(h.summaryAt)}</td>
                 <td className="px-4 py-3 text-slate-600">
                   {mb(h.usedBytes)} <span className="text-xs text-slate-400">of {h.quotaMb} MB · {h.files} files</span>
                 </td>

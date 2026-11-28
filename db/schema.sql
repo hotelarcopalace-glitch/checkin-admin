@@ -255,3 +255,7 @@ CREATE TABLE IF NOT EXISTS sync_hotels (
   active      BOOLEAN     NOT NULL DEFAULT TRUE,
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Owner phone app (checkin.co.in/owner): hash of the phones' read token, and when the hotel last sent its report summary.
+ALTER TABLE sync_hotels ADD COLUMN IF NOT EXISTS mobile_hash TEXT;
+ALTER TABLE sync_hotels ADD COLUMN IF NOT EXISTS summary_at  TIMESTAMPTZ;
+
