@@ -29,6 +29,12 @@ export default function SyncPage() {
             ki yeh office ka computer hai kya: <strong>Yes</strong> chun kar <strong>2. Office setup</strong> me office key
             daalein. Ab office me CHECKIN chalate hi data aa jayega.
           </li>
+          <li>
+            Malik ke phone ke liye (sold rooms, collection, sale): hotel ke computer par{" "}
+            <strong>UTILITY &gt; Misc. &gt; Office Sync &gt; 7. Mobile app key</strong> kholein aur wahan dikhe QR ko phone ke
+            camera se scan karein; ya phone me <strong>checkin.co.in/owner</strong> khol kar wahi key likhein. Hotel par naya
+            CHECKIN.exe aur UTILITY.exe dono ek hi folder me hone chahiye.
+          </li>
         </ol>
         <p className="mt-3 text-xs text-slate-400">
           Alag CKSYNC.exe ab nahi chahiye: bhejna aur utarna UTILITY.exe hi karta hai. Office key sirf hotel ke computer par banti

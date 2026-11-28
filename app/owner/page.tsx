@@ -364,8 +364,8 @@ export default function OwnerPage() {
 
       <div className="mx-auto max-w-xl px-4">
         {state === "denied" && (
-          <Notice tone="red" title="This key no longer opens the hotel's figures">
-            The hotel was set up again, or the key was typed wrongly. Remove this hotel (tap its name above) and add it again with the key shown on the
+          <Notice tone="red" title="This key does not open the hotel's figures">
+            The key was typed wrongly, or the hotel was set up again since. Remove this hotel (tap its name above) and add it again with the key shown on the
             hotel computer: UTILITY › Misc. › Office Sync › 7. Mobile app key.
           </Notice>
         )}
