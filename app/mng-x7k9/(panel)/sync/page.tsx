@@ -20,17 +20,20 @@ export default function SyncPage() {
         <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-slate-600">
           <li>Upar hotel ka naam likh kar <strong>Add hotel</strong> dabaayein; jo setup code dikhe use likh lein.</li>
           <li>
-            Hotel ke computer par <strong>CKSYNC</strong> chala kar <strong>Hotel setup</strong> me wo code daalein. Wahan ek{" "}
-            <strong>office key</strong> dikhegi.
+            Hotel ke computer par <strong>UTILITY</strong> me MAIN adhikar wale user se login karke{" "}
+            <strong>Misc. &gt; Office Sync &gt; 1. Hotel setup</strong> me wo code daalein. Wahan ek <strong>office key</strong>{" "}
+            dikhegi.
           </li>
           <li>
-            Office ke computer par <strong>CKSYNC</strong> &gt; <strong>Office setup</strong> me wo office key daalein. Ab office me
-            CHECKIN chalate hi data aa jayega.
+            Office ke computer par CHECKIN folder me <strong>UTILITY</strong> chalayein. Wahan data nahi hota, isliye wo poochhega
+            ki yeh office ka computer hai kya: <strong>Yes</strong> chun kar <strong>2. Office setup</strong> me office key
+            daalein. Ab office me CHECKIN chalate hi data aa jayega.
           </li>
         </ol>
         <p className="mt-3 text-xs text-slate-400">
-          Office key sirf hotel ke computer par banti hai aur yahan kabhi nahi aati. Kho jaye to hotel ke CKSYNC me dobara dekhi ja
-          sakti hai.
+          Alag CKSYNC.exe ab nahi chahiye: bhejna aur utarna UTILITY.exe hi karta hai. Office key sirf hotel ke computer par banti
+          hai aur yahan kabhi nahi aati; kho jaye to hotel ke UTILITY &gt; Misc. &gt; Office Sync &gt; 4 me dobara dekhi ja sakti
+          hai.
         </p>
       </div>
     </div>

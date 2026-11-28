@@ -246,7 +246,9 @@ the name in the UPI app; do not add wording that suggests the site vouches for t
 ## Office Sync (added 28 Nov 2026)
 
 A one-way, encrypted mirror of a hotel's CHECKIN data folder, so the owner's office can open the same desktop
-program on a view-only copy. Desktop side: `CKSYNC.exe` (`D:\CHECKIN\CKSYNC.PRG`) and `OFFSYNC.PRG` inside CHECKIN.exe.
+program on a view-only copy. Desktop side: `D:\CHECKIN\CKSYNC.PRG`, compiled into **UTILITY.exe** since 28 Nov 2026
+(`UTILITY /SYNC:SEND | /SYNC:GET | /SYNC:SETUP`; menu under UTILITY > Misc. > Office Sync, Main-rights users only), and
+`OFFSYNC.PRG` inside CHECKIN.exe. There is no separate CKSYNC.exe any more.
 
 - **Flow:** hotel PC pushes -> this server stores -> office PC pulls. Nothing ever flows back to the hotel.
 - **What is stored:** `SYNC_DIR` (default `~/syncdata`, i.e. `/home/deploy/syncdata`, outside the release folders):

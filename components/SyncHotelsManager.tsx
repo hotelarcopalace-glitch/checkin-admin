@@ -109,7 +109,7 @@ export default function SyncHotelsManager() {
           <p className="text-sm font-semibold text-amber-900">Setup code for {code.name}</p>
           <p className="mt-2 break-all font-mono text-lg font-semibold text-amber-950">{code.text}</p>
           <p className="mt-2 text-sm text-amber-900">
-            Type this once on the hotel PC (CKSYNC &gt; Hotel setup). It is shown only now and works only once.
+            Type this once on the hotel PC (UTILITY &gt; Misc. &gt; Office Sync &gt; Hotel setup). It is shown only now and works only once.
           </p>
           <button onClick={() => setCode(null)} className="mt-3 rounded-lg border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-900">
             Done
